@@ -1,36 +1,88 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SVG Property Editor
 
-## Getting Started
+SVGを読み込み、要素をクリックで選択してプロパティ（塗り／線／不透明度／変形／アニメーション）を編集し、**自動保存**するWebアプリ。
 
-First, run the development server:
+- **Next.js 16 (App Router, TypeScript)** — Turbopack
+- **Supabase** — 認証・Postgres・Storage（すべてマルチユーザー、RLSで分離）
+- **Cloudflare Workers** — `@opennextjs/cloudflare` でデプロイ（配線済み）
+
+## 仕組み（設計の要点）
+
+- **インポート時に各SVG要素へ安定ID `data-eid` を自動採番**（DOMPurifyでサニタイズ）。これが「動的プロパティの自動付与」の実体。
+- 保存は **二層**: 正規化した基底SVGを **Supabase Storage**（private + 署名URL）に、要素ごとの編集差分を **`documents.edits` (JSONB)** に。自動保存は小さなJSONのupsertのみで軽量。
+- 描画は基底SVGに差分を適用。エクスポートはDOMを直列化（`data-eid`除去＋アニメkeyframes埋込）。
+- SVGのparse/serializeは**クライアント限定**（Workersランタイムの制約回避）。
+
+## 必要環境
+
+- Node.js 22+（開発は Node 26 で確認）
+- Docker Desktop（ローカルSupabase用）
+
+## セットアップ（ローカル）
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# 1) 依存インストール
+npm install
+
+# 2) ローカルSupabaseを起動（Docker必須）
+npx supabase start
+#   → 出力の API URL / PUBLISHABLE_KEY を控える
+
+# 3) 環境変数ファイルを作成（下記参照）
+#    .env.local を手動で作成
+
+# 4) 開発サーバ
+npm run dev   # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### `.env.local`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`npx supabase start` の出力値を使う（ローカル既定値は毎回同じ）:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<supabase start が表示する PUBLISHABLE_KEY>
+```
 
-## Learn More
+> ローカルは `enable_confirmations=false`（`supabase/config.toml`）のため、メール確認なしでサインアップ即ログインできる。Studio: http://127.0.0.1:54323 / メール確認UI(Mailpit): http://127.0.0.1:54324
 
-To learn more about Next.js, take a look at the following resources:
+### DBスキーマ / 型
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- スキーマは `supabase/migrations/` にあり、`supabase start` / `supabase db reset` で適用。
+- 型再生成: `npx supabase gen types typescript --local > src/lib/types/database.types.ts`
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Cloudflare Workers へのデプロイ
 
-## Deploy on Vercel
+ホスティングは `@opennextjs/cloudflare`（設定は配線済み: `open-next.config.ts` / `wrangler.jsonc`）。
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+# Workers向けビルド（.open-next/worker.js を生成）
+npx opennextjs-cloudflare build
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# ローカルでWorkersランタイム(workerd)確認
+npm run preview
+
+# デプロイ（要 Cloudflare アカウント / wrangler login）
+npm run deploy
+```
+
+本番の秘密は `.dev.vars`（ローカルpreview用）と `wrangler secret put`（本番）で設定する。
+Supabase は本番プロジェクトのURL/publishableキーに差し替える。
+
+## 主要ディレクトリ
+
+```
+src/
+  middleware.ts               # 認証保護（Supabaseセッション更新, getClaims）
+  app/
+    page.tsx                  # ダッシュボード（文書一覧＋アップロード）
+    login/page.tsx            # ログイン/新規登録
+    auth/callback/route.ts    # コード交換コールバック
+    editor/[id]/page.tsx      # エディタ（基底SVGをStorageから取得）
+  components/                 # SvgCanvas / PropertyPanel / EditorClient / ...
+  lib/
+    supabase/{client,server,middleware}.ts   # @supabase/ssr
+    svg/{normalize,apply,serialize,animations}.ts
+    hooks/useAutoSave.ts
+supabase/migrations/          # documents テーブル + RLS + Storageポリシー
+```

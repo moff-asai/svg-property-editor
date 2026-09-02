@@ -1,0 +1,180 @@
+import { Muxer, ArrayBufferTarget } from "mp4-muxer";
+import { pickCodec, encodeDimensions } from "@/lib/media/h264";
+
+// canvas コンテンツ(05/07)の書き出し。WebCodecs+mp4-muxer で決定論的に H.264/MP4 化
+// （phase を固定ステップで進め frameCount 枚を正確にエンコード）。WebCodecs 非対応時は
+// MediaRecorder にフォールバック（実時間キャプチャ・WebMになる場合あり）。
+
+export type FramePainter = (
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number,
+  phase: number,
+) => void;
+export type Progress = (done: number, total: number) => void;
+
+function downloadBlob(blob: Blob, name: string, ext: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name.endsWith(`.${ext}`) ? name : `${name}.${ext}`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export async function exportCanvasMp4(opts: {
+  paint: FramePainter;
+  width: number;
+  height: number;
+  fps: number;
+  loopSeconds: number;
+  bitrateMbps: number;
+  name: string;
+  onProgress?: Progress;
+}): Promise<void> {
+  const { paint, width, height, fps, loopSeconds, bitrateMbps, name, onProgress } = opts;
+  const { sw, sh } = encodeDimensions(width, height);
+  const canvas = document.createElement("canvas");
+  canvas.width = sw;
+  canvas.height = sh;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D コンテキストを取得できませんでした");
+
+  const frameCount = Math.max(1, Math.round(loopSeconds * fps));
+  const frameDurUs = Math.round(1_000_000 / fps);
+  const bitrate = Math.min(40_000_000, Math.max(1_000_000, Math.round(bitrateMbps * 1_000_000)));
+
+  // --- WebCodecs（決定論的・推奨） ---
+  if (typeof VideoEncoder !== "undefined" && typeof VideoFrame !== "undefined") {
+    const codec = await pickCodec(sw, sh, fps);
+    if (!codec) throw new Error("対応する H.264 エンコーダが見つかりませんでした");
+
+    const muxer = new Muxer({
+      target: new ArrayBufferTarget(),
+      video: { codec: "avc", width: sw, height: sh, frameRate: fps },
+      fastStart: "in-memory",
+    });
+    let encodeError: unknown = null;
+    const encoder = new VideoEncoder({
+      output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+      error: (e) => {
+        encodeError = e;
+      },
+    });
+    const config = {
+      codec,
+      width: sw,
+      height: sh,
+      framerate: fps,
+      bitrate,
+      avc: { format: "avc" },
+    } as VideoEncoderConfig;
+    encoder.configure(config);
+
+    for (let i = 0; i < frameCount; i++) {
+      const phase = i / frameCount; // 0..1 未満（1と0は同一フレーム=seamless）
+      paint(ctx, sw, sh, phase);
+      const frame = new VideoFrame(canvas, {
+        timestamp: i * frameDurUs,
+        duration: frameDurUs,
+      });
+      encoder.encode(frame, { keyFrame: i % fps === 0 });
+      frame.close();
+      if (encodeError) throw encodeError;
+      onProgress?.(i + 1, frameCount);
+      if (i % 5 === 0) await new Promise((r) => setTimeout(r, 0));
+    }
+    await encoder.flush();
+    encoder.close();
+    if (encodeError) throw encodeError;
+    muxer.finalize();
+    downloadBlob(new Blob([(muxer.target as ArrayBufferTarget).buffer], { type: "video/mp4" }), name, "mp4");
+    return;
+  }
+
+  // --- フォールバック: MediaRecorder（実時間・MP4不可時はWebM） ---
+  const mimes = [
+    "video/mp4;codecs=avc1.640028",
+    "video/mp4",
+    "video/webm;codecs=vp9",
+    "video/webm",
+  ];
+  const canRecord =
+    typeof MediaRecorder !== "undefined" &&
+    typeof canvas.captureStream === "function";
+  const mime = canRecord ? mimes.find((m) => MediaRecorder.isTypeSupported(m)) : undefined;
+  if (!mime) {
+    throw new Error(
+      "この環境は動画書き出しに未対応です（WebCodecs / MediaRecorder いずれも利用不可）。PNG書き出しをお使いください。",
+    );
+  }
+  const stream = canvas.captureStream(fps);
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: bitrate });
+  const chunks: Blob[] = [];
+  rec.ondataavailable = (e) => {
+    if (e.data.size) chunks.push(e.data);
+  };
+  const stopped = new Promise<void>((res) => {
+    rec.onstop = () => res();
+  });
+  rec.start();
+  const start = performance.now();
+  await new Promise<void>((resolve) => {
+    const tick = (now: number) => {
+      const phase = (now - start) / 1000 / loopSeconds;
+      if (phase >= 1) {
+        paint(ctx, sw, sh, 0.9999);
+        resolve();
+        return;
+      }
+      paint(ctx, sw, sh, phase);
+      onProgress?.(Math.min(frameCount, Math.round(phase * frameCount)), frameCount);
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  rec.stop();
+  await stopped;
+  const ext = mime.startsWith("video/mp4") ? "mp4" : "webm";
+  downloadBlob(new Blob(chunks, { type: mime }), name, ext);
+}
+
+export async function exportCanvasPng(
+  paint: FramePainter,
+  phase: number,
+  name = "identity",
+  w = 2560,
+  h = 1440,
+): Promise<void> {
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D コンテキストを取得できませんでした");
+  paint(ctx, w, h, phase);
+  const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/png"));
+  if (blob) downloadBlob(blob, name, "png");
+}
+
+// raster コンテンツの SVG 書き出し: 現在フレームを PNG にして <image> で埋め込んだ
+// 正当な .svg を生成する（ベクター化不可のため静止1フレーム）。
+export function exportCanvasSvg(
+  paint: FramePainter,
+  phase: number,
+  name = "identity",
+  w = 1280,
+  h = 720,
+): void {
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Canvas 2D コンテキストを取得できませんでした");
+  paint(ctx, w, h, phase);
+  const dataUrl = canvas.toDataURL("image/png");
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" ` +
+    `viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">` +
+    `<image width="${w}" height="${h}" href="${dataUrl}" xlink:href="${dataUrl}"/></svg>`;
+  downloadBlob(new Blob([svg], { type: "image/svg+xml" }), name, "svg");
+}

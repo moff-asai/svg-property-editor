@@ -36,6 +36,14 @@ yarn-error.log*
 # vercel
 .vercel
 
+# cloudflare / opennext
+/.open-next/
+.dev.vars
+.wrangler/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# playwright-mcp のテスト成果物/ダウンロード
+.playwright-mcp/

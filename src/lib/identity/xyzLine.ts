@@ -1,0 +1,164 @@
+// dynamic-identity-generator3.html コンテンツ 08「XYZ LINE」(draw2) を SVG 生成へ移植。
+// アニメは generator3 の「箱の幅/高さ変形ループ」(seqHold エンベロープ)を再現する。
+// 幅/高さ変形は CSS scale キーフレームで近似（箱は viewBox 中心固定なので中心拡縮）。
+// scale は translate→scale→translate の行列に落ちるため exportVideo.ts が各フレーム
+// getComputedStyle(transform) で正しく焼き込め、SVG書き出しでも単体でアニメする。
+// 純粋関数（DOM 非依存）。
+
+export const XYZ_PALS = ["purple", "teal", "grad", "ink"] as const;
+export type XyzPal = (typeof XYZ_PALS)[number];
+
+// PAL2 (generator3 HTML:777-782)
+export const XYZ_PAL: Record<XyzPal, { fill: string[]; line: string }> = {
+  purple: { fill: ["#662DF5"], line: "#874FF6" },
+  teal: { fill: ["#64D9DA"], line: "#8FE9E6" },
+  grad: { fill: ["#662DF5", "#B9A2FA"], line: "#C4B1FB" },
+  ink: { fill: ["#101012"], line: "#4A4A4E" },
+};
+
+export interface XyzLineParams {
+  pal: XyzPal;
+  ch: number; // 面取り .05–.25
+  pos: number; // 交点位置 0–1
+  lw: number; // 線の太さ .3–2.5
+  loopDur: number; // ループ長(秒)
+  size: number; // 正方 viewBox 一辺
+  bg?: string; // 背景色（transparent 未指定時に背景 rect を出力）
+  transparent?: number; // 1で背景 rect を出さない（透過）
+}
+
+export const XYZ_DEFAULTS: XyzLineParams = {
+  pal: "purple",
+  ch: 0.13,
+  pos: 0.18,
+  lw: 0.9,
+  loopDur: 6,
+  size: 1000,
+};
+
+export const XYZ_PRESETS: Partial<XyzLineParams>[] = [
+  { pal: "purple", ch: 0.13, pos: 0.18 },
+  { pal: "grad", ch: 0.16, pos: 0.1 },
+  { pal: "teal", ch: 0.12, pos: 0.12 },
+  { pal: "ink", ch: 0.18, pos: 0.22 },
+];
+
+export const XYZ_CONTROLS: {
+  key: "ch" | "pos" | "lw" | "loopDur";
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+}[] = [
+  { key: "ch", label: "面取り", min: 0.05, max: 0.25, step: 0.005 },
+  { key: "pos", label: "交点位置", min: 0, max: 1, step: 0.01 },
+  { key: "lw", label: "線の太さ", min: 0.3, max: 2.5, step: 0.05 },
+  { key: "loopDur", label: "ループ長(秒)", min: 2, max: 10, step: 0.5 },
+];
+
+// generator3 のアニメ・エンベロープ（HTML:689-703）
+const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t);
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+function easeSharp(t: number, k = 3) {
+  t = clamp01(t);
+  k = Math.max(0.6, k || 1);
+  const a = Math.pow(t, k),
+    b = Math.pow(1 - t, k);
+  return a / (a + b || 1);
+}
+function seqHold(ph: number, a: number, b: number, c: number, d: number, k = 3) {
+  ph = ((ph % 1) + 1) % 1;
+  if (ph < a || ph > d) return 0;
+  if (ph < b) return easeSharp((ph - a) / (b - a), k);
+  if (ph < c) return 1;
+  return 1 - easeSharp((ph - c) / (d - c), k);
+}
+
+// アニメの最大サイズ（w/h ともに 0.64 まで成長）。この基準で描画し scale で縮める。
+const WMAX = 0.64;
+const HMAX = 0.64;
+const EASE_H = 4.2;
+const EASE_W = 4.2;
+const KF_STOPS = 26;
+
+const f = (n: number) => n.toFixed(2);
+
+export function renderXyzLineSvg(p: XyzLineParams): string {
+  const W = p.size;
+  const H = p.size;
+  // 基準（最大）ジオメトリ。draw2 の式（generator3 HTML:790-818）を最大サイズで評価。
+  const bw = W * WMAX;
+  const bh = H * HMAX;
+  const m = Math.min(bw, bh);
+  const c = m * p.ch;
+  const x0 = W / 2 - bw / 2;
+  const y0 = H / 2 - bh / 2;
+
+  const pts: [number, number][] = [
+    [x0 + c, y0],
+    [x0 + bw, y0],
+    [x0 + bw, y0 + bh - c],
+    [x0 + bw - c, y0 + bh],
+    [x0, y0 + bh],
+    [x0, y0 + c],
+  ];
+  const points = pts.map(([x, y]) => `${f(x)},${f(y)}`).join(" ");
+
+  // 交点 J: 右下チャンファー起点から左上へ（pos で位置指定）
+  const dmax = Math.min(bw, bh) - c * 1.4;
+  const d = c * 0.75 + p.pos * dmax;
+  const jx = x0 + bw - d;
+  const jy = y0 + bh - d;
+
+  // 光線（遠端を延長 → clip で切り取り）
+  const EXT = 2 * Math.max(bw, bh);
+  const rayY = `M ${f(jx)} ${f(jy)} L ${f(jx)} ${f(y0 - EXT)}`;
+  const rayX = `M ${f(jx)} ${f(jy)} L ${f(x0 + bw + EXT)} ${f(jy)}`;
+  const rayZ = `M ${f(jx)} ${f(jy)} L ${f(jx - EXT)} ${f(jy + EXT)}`;
+  const rayD = `${rayY} ${rayX} ${rayZ}`;
+
+  const lineW = Math.max(1.2, m * 0.012 * p.lw);
+  const pal = XYZ_PAL[p.pal];
+  const isGrad = pal.fill.length > 1;
+  const fillAttr = isGrad ? "url(#xyz-grad)" : pal.fill[0];
+  const gradDef = isGrad
+    ? `<linearGradient id="xyz-grad" gradientUnits="userSpaceOnUse" x1="${f(x0)}" y1="${f(y0)}" x2="${f(x0 + bw)}" y2="${f(y0)}">` +
+      `<stop offset="0" stop-color="${pal.fill[0]}"/><stop offset="1" stop-color="${pal.fill[1]}"/></linearGradient>`
+    : "";
+
+  // 幅/高さ変形を中心拡縮の CSS scale キーフレームで再現（seqHold をサンプリング）
+  const cx = W / 2;
+  const cy = H / 2;
+  let frames = "";
+  for (let i = 0; i < KF_STOPS; i++) {
+    const ph = i / (KF_STOPS - 1);
+    const hGrow = seqHold(ph, 0.06, 0.34, 0.72, 0.94, EASE_H);
+    const wGrow = seqHold(ph, 0.42, 0.7, 0.72, 0.94, EASE_W);
+    const wv = lerp(0.22, WMAX, wGrow);
+    const hv = lerp(0.21, HMAX, hGrow);
+    const sx = (wv / WMAX).toFixed(4);
+    const sy = (hv / HMAX).toFixed(4);
+    const pct = ((ph * 100).toFixed(2) + "%").replace(".00%", "%");
+    frames += `${pct}{transform:translate(${f(cx)}px,${f(cy)}px) scale(${sx},${sy}) translate(${f(-cx)}px,${f(-cy)}px)}`;
+  }
+  const style =
+    `@keyframes xyz-morph{${frames}}` +
+    `.xyz-anim{animation:xyz-morph ${p.loopDur}s linear infinite}`;
+
+  const bgRect =
+    p.bg && !p.transparent ? `<rect width="${W}" height="${H}" fill="${p.bg}"/>` : "";
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
+    bgRect +
+    `<style>${style}</style>` +
+    `<defs><clipPath id="xyz-clip"><polygon points="${points}"/></clipPath>${gradDef}</defs>` +
+    `<g data-eid="xyz-box" class="xyz-anim">` +
+    `<polygon data-eid="xyz-fill" points="${points}" fill="${fillAttr}"/>` +
+    `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
+    // vector-effect: 箱の scale アニメで線幅が変わらない（非等方scaleでの太さ歪みを防ぐ）
+    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${pal.line}" ` +
+    `stroke-width="${f(lineW)}" vector-effect="non-scaling-stroke" ` +
+    `stroke-linejoin="round" stroke-linecap="butt"/>` +
+    `</g></g></svg>`
+  );
+}
