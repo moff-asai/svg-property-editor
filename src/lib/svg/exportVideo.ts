@@ -18,16 +18,92 @@ const DEFAULT_DURATION_SEC = 2; // アニメ未指定時のクリップ長 / app
 
 export type Mp4Progress = (done: number, total: number) => void;
 
-function parseSize(svg: SVGSVGElement): { w: number; h: number } {
+interface Box {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+function parseViewBox(svg: SVGSVGElement): Box {
   const vb = svg.getAttribute("viewBox");
   if (vb) {
     const p = vb.split(/[\s,]+/).map(Number);
-    if (p.length === 4 && p[2] > 0 && p[3] > 0) return { w: p[2], h: p[3] };
+    if (p.length === 4 && p.every(Number.isFinite) && p[2] > 0 && p[3] > 0)
+      return { x: p[0], y: p[1], w: p[2], h: p[3] };
   }
   const w = parseFloat(svg.getAttribute("width") ?? "");
   const h = parseFloat(svg.getAttribute("height") ?? "");
-  if (w > 0 && h > 0) return { w, h };
-  return { w: 800, h: 600 };
+  if (w > 0 && h > 0) return { x: 0, y: 0, w, h };
+  return { x: 0, y: 0, w: 800, h: 600 };
+}
+
+// 移動/アニメーションで viewBox 外へ出た内容も含めた、サンプル時刻を通じての
+// 描画範囲（SVG user 座標）。base(=viewBox) との和をとる。
+//
+// 計測は「幾何境界」(el.getBBox) を要素→SVGルートの行列(getScreenCTM)で user 座標へ
+// 変換して行う。getScreenCTM は CSS アニメの transform も反映するため translate/scale/
+// rotate やアニメの変位は捕捉しつつ、stroke 幅・filter 領域(実描画境界)は含めない。
+// これにより「viewBox 端に接する stroke/filter 付き要素に、移動を伴わない編集(色変更や
+// blink 等)を足しただけ」で誤ってカメラが引かれる=従来出力と不一致になる、を防ぐ。
+async function measureContentExtent(
+  svg: SVGSVGElement,
+  anims: Animation[],
+  eids: string[],
+  sampleTimes: number[],
+  base: Box,
+): Promise<Box> {
+  let minX = base.x;
+  let minY = base.y;
+  let maxX = base.x + base.w;
+  let maxY = base.y + base.h;
+  const rootCtm = svg.getScreenCTM();
+  if (!rootCtm || eids.length === 0) {
+    return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+  }
+  const rootInv = rootCtm.inverse();
+  // 要素参照はループ外で一度だけ解決
+  const els = eids
+    .map((id) => svg.querySelector<SVGGraphicsElement>(`[data-eid="${id}"]`))
+    .filter((e): e is SVGGraphicsElement => e != null);
+  for (let s = 0; s < sampleTimes.length; s++) {
+    const t = sampleTimes[s];
+    anims.forEach((a) => {
+      try {
+        a.currentTime = t * 1000;
+        a.pause();
+      } catch {
+        // シーク不可のアニメは無視
+      }
+    });
+    for (const el of els) {
+      let bb: DOMRect;
+      try {
+        bb = el.getBBox();
+      } catch {
+        continue;
+      }
+      if (bb.width === 0 && bb.height === 0) continue;
+      const elCtm = el.getScreenCTM();
+      if (!elCtm) continue;
+      const m = rootInv.multiply(elCtm); // 要素ローカル → SVGルート user 座標
+      const corners: [number, number][] = [
+        [bb.x, bb.y],
+        [bb.x + bb.width, bb.y],
+        [bb.x, bb.y + bb.height],
+        [bb.x + bb.width, bb.y + bb.height],
+      ];
+      for (const [cx, cy] of corners) {
+        const p = new DOMPoint(cx, cy).matrixTransform(m);
+        minX = Math.min(minX, p.x);
+        minY = Math.min(minY, p.y);
+        maxX = Math.max(maxX, p.x);
+        maxY = Math.max(maxY, p.y);
+      }
+    }
+    if (s % 16 === 15) await new Promise((r) => setTimeout(r, 0)); // UIを止めない
+  }
+  return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 }
 
 function loadImage(url: string): Promise<HTMLImageElement> {
@@ -89,14 +165,65 @@ export async function exportMp4(opts: {
       }
     });
 
-    const { w, h } = parseSize(svg);
-    // data URL 経由の <img> が intrinsic size を持つよう明示
-    svg.setAttribute("width", String(w));
-    svg.setAttribute("height", String(h));
-    const { sw, sh } = encodeDimensions(w, h);
+    const vb = parseViewBox(svg);
+    const w = vb.w;
+    const h = vb.h;
 
     const duration = maxAnimDur > 0 ? maxAnimDur : DEFAULT_DURATION_SEC;
     const frameCount = Math.max(1, Math.round(duration * fps));
+
+    const anims = svg.getAnimations({ subtree: true });
+
+    // 移動/アニメーションが viewBox の外へ出ても切れないよう、全フレームの描画範囲に
+    // 合わせて書き出しの viewBox を広げる（アスペクト比は維持＝カメラを引く）。
+    // 何も範囲外へ出ない場合は viewBox を変えない（従来と同一の出力）。
+    const eidsToMeasure = Array.from(
+      new Set([...Object.keys(edits), ...animatedEids]),
+    );
+    if (eidsToMeasure.length > 0) {
+      const nSamples = animatedEids.length > 0 ? Math.min(frameCount, 120) : 1;
+      const sampleTimes = Array.from({ length: nSamples }, (_, k) =>
+        nSamples > 1 ? (k / (nSamples - 1)) * duration : 0,
+      );
+      const ext = await measureContentExtent(svg, anims, eidsToMeasure, sampleTimes, vb);
+      const exceeds =
+        ext.x < vb.x - 0.5 ||
+        ext.y < vb.y - 0.5 ||
+        ext.x + ext.w > vb.x + vb.w + 0.5 ||
+        ext.y + ext.h > vb.y + vb.h + 0.5;
+      if (exceeds) {
+        const mx = ext.w * 0.02;
+        const my = ext.h * 0.02;
+        let x = ext.x - mx;
+        let y = ext.y - my;
+        let ew = ext.w + mx * 2;
+        let eh = ext.h + my * 2;
+        // 元のアスペクト比に合わせて拡張し中央寄せ（出力の縦横比・解像度は不変）
+        const target = w / h;
+        if (ew / eh > target) {
+          const neh = ew / target;
+          y -= (neh - eh) / 2;
+          eh = neh;
+        } else {
+          const newW = eh * target;
+          x -= (newW - ew) / 2;
+          ew = newW;
+        }
+        svg.setAttribute("viewBox", `${x} ${y} ${ew} ${eh}`);
+        svg.setAttribute("width", String(ew));
+        svg.setAttribute("height", String(eh));
+      } else {
+        svg.setAttribute("width", String(w));
+        svg.setAttribute("height", String(h));
+      }
+    } else {
+      // data URL 経由の <img> が intrinsic size を持つよう明示
+      svg.setAttribute("width", String(w));
+      svg.setAttribute("height", String(h));
+    }
+
+    // 出力解像度は元の viewBox 比から決定（アスペクト比を維持しているため不変）
+    const { sw, sh } = encodeDimensions(w, h);
 
     const codec = await pickCodec(sw, sh, fps);
     if (!codec) {
@@ -132,7 +259,6 @@ export async function exportMp4(opts: {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Canvas 2D コンテキストを取得できませんでした");
 
-    const anims = svg.getAnimations({ subtree: true });
     const frameDurUs = Math.round(1_000_000 / fps);
 
     for (let i = 0; i < frameCount; i++) {
