@@ -92,6 +92,8 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
   const loopRef = useRef(loopSeconds);
   const phaseRef = useRef(0);
   const exportingRef = useRef(false);
+  const seekRef = useRef<HTMLInputElement>(null);
+  const timeRef = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     paramsRef.current = params;
     playingRef.current = playing;
@@ -115,6 +117,15 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
       }
       const r = rendererRef.current;
       if (r) r.render(ctx, canvas.width, canvas.height, phaseRef.current, paramsRef.current);
+      // 再生バーを現在位相に同期（スクラブ中=フォーカス時は onSeek 側が駆動）
+      const seek = seekRef.current;
+      if (seek && document.activeElement !== seek) {
+        seek.value = String(phaseRef.current);
+        seek.style.setProperty("--fill", `${(phaseRef.current * 100).toFixed(1)}%`);
+      }
+      if (timeRef.current) {
+        timeRef.current.textContent = `${(phaseRef.current * loopRef.current).toFixed(1)}s / ${loopRef.current.toFixed(1)}s`;
+      }
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -133,6 +144,22 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
   function applyPatch(patch: Params) {
     setParams((prev) => ({ ...prev, ...patch }));
     setSaved(false);
+  }
+
+  // 再生バーでのシーク（停止してその位置を表示。書き出しは phaseRef を使用）
+  function seekTo(v: number) {
+    phaseRef.current = ((v % 1) + 1) % 1;
+    if (playingRef.current) {
+      playingRef.current = false;
+      setPlaying(false);
+    }
+    if (seekRef.current) {
+      seekRef.current.value = String(phaseRef.current);
+      seekRef.current.style.setProperty("--fill", `${(phaseRef.current * 100).toFixed(1)}%`);
+    }
+    if (timeRef.current) {
+      timeRef.current.textContent = `${(phaseRef.current * loopRef.current).toFixed(1)}s / ${loopRef.current.toFixed(1)}s`;
+    }
   }
 
   async function handleSave() {
@@ -255,12 +282,6 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
           <button className="gen-tbtn" onClick={handleSave} disabled={saving}>
             {saving ? "…" : saved ? "SAVED" : "SAVE"}
           </button>
-          <button
-            className={`gen-tbtn${playing ? " is-active" : ""}`}
-            onClick={() => setPlaying((v) => !v)}
-          >
-            {playing ? "停止" : "再生"}
-          </button>
           <button className="gen-tbtn" onClick={handleSvg}>
             SVG
           </button>
@@ -297,16 +318,42 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
               style={{ aspectRatio: "16 / 9" }}
             />
           </div>
-          <div className="gen-stage-footer">
-            <span>{playing ? "PLAYING" : "PAUSED"}</span>
-            {error ? (
-              <span className="gen-err">{error}</span>
-            ) : (
-              <span>
-                LOOP {loopSeconds}s · {fps}FPS
-              </span>
-            )}
-            <span>16 : 9</span>
+          <div className="gen-transport">
+            <button
+              className="gen-play"
+              onClick={() => setPlaying((v) => !v)}
+              title={playing ? "停止" : "再生"}
+              aria-label={playing ? "停止" : "再生"}
+            >
+              {playing ? (
+                <svg viewBox="0 0 24 24" aria-hidden>
+                  <path d="M6 5h4v14H6zM14 5h4v14h-4z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" aria-hidden>
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              )}
+            </button>
+            <input
+              ref={seekRef}
+              className="gen-seek"
+              type="range"
+              min={0}
+              max={1}
+              step={0.001}
+              defaultValue={0}
+              aria-label="再生位置"
+              onPointerDown={() => {
+                if (playingRef.current) {
+                  playingRef.current = false;
+                  setPlaying(false);
+                }
+              }}
+              onInput={(e) => seekTo(Number(e.currentTarget.value))}
+            />
+            {error && <span className="gen-err">{error}</span>}
+            <span ref={timeRef} className="gen-time" />
           </div>
         </div>
 
@@ -403,8 +450,9 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
           </div>
 
           <p className="gen-note">
-            SVG は XYZ / HEX HALO / LIQUID GLASS は編集可能なベクター（各図形）、3Dモード（DATA
-            CUBE / GRID CUBE）は現在フレームを埋め込んだ静止画で書き出します。
+            再生バーで位置を合わせて停止すると、その瞬間が SVG / PNG に書き出されます。SVG は
+            XYZ / HEX HALO / LIQUID GLASS が編集可能なベクター（各図形）、3Dモード（DATA CUBE /
+            GRID CUBE）は現在フレームを埋め込んだ静止画です。
           </p>
         </aside>
       </div>

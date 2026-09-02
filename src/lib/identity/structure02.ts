@@ -113,8 +113,8 @@ function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number
 function createXyzMode(): CanvasRenderer {
   return {
     render: drawXyz,
-    // XYZ はベクターSVG（アニメ付き・イラレ編集可）を直接生成
-    toSvg: ({ loopSeconds, params }) => {
+    // XYZ は「停止位置」の静止フレームをベクターSVG（イラレ編集可）で出力
+    toSvg: ({ phase, loopSeconds, params }) => {
       const p = params as unknown as XyzModeParams;
       return renderXyzLineSvg({
         pal: p.pal,
@@ -125,6 +125,8 @@ function createXyzMode(): CanvasRenderer {
         size: 1000,
         bg: p.bg,
         transparent: p.transparent,
+        phase,
+        animated: false,
       });
     },
   };

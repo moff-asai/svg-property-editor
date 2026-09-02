@@ -25,6 +25,8 @@ export interface XyzLineParams {
   size: number; // 正方 viewBox 一辺
   bg?: string; // 背景色（transparent 未指定時に背景 rect を出力）
   transparent?: number; // 1で背景 rect を出さない（透過）
+  phase?: number; // 静止書き出し時の位相 0..1
+  animated?: boolean; // false で phase の静止フレームを出力（アニメ無し）
 }
 
 export const XYZ_DEFAULTS: XyzLineParams = {
@@ -83,9 +85,63 @@ const KF_STOPS = 26;
 
 const f = (n: number) => n.toFixed(2);
 
+// 停止位置(phase)の静止フレームをベクターSVGで出力する。
+// キャンバス drawXyz と同じ式で phase の箱サイズ/交点を求め、クリップした光線を描く
+// （キーフレーム/スケール無し＝そのまま止まった見た目のイラレ編集可ベクター）。
+function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
+  const ph = (((p.phase ?? 0) % 1) + 1) % 1;
+  const hGrow = seqHold(ph, 0.06, 0.34, 0.72, 0.94, EASE_H);
+  const wGrow = seqHold(ph, 0.42, 0.7, 0.72, 0.94, EASE_W);
+  const bw = W * lerp(0.22, WMAX, wGrow);
+  const bh = H * lerp(0.21, HMAX, hGrow);
+  const m = Math.min(bw, bh);
+  const c = m * p.ch;
+  const x0 = W / 2 - bw / 2;
+  const y0 = H / 2 - bh / 2;
+  const pts: [number, number][] = [
+    [x0 + c, y0],
+    [x0 + bw, y0],
+    [x0 + bw, y0 + bh - c],
+    [x0 + bw - c, y0 + bh],
+    [x0, y0 + bh],
+    [x0, y0 + c],
+  ];
+  const points = pts.map(([x, y]) => `${f(x)},${f(y)}`).join(" ");
+  const dmax = Math.min(bw, bh) - c * 1.4;
+  const d = c * 0.75 + p.pos * dmax;
+  const jx = x0 + bw - d;
+  const jy = y0 + bh - d;
+  const k = Math.min(jx - x0, y0 + bh - jy) + 4;
+  const rayD =
+    `M ${f(jx)} ${f(jy)} L ${f(jx)} ${f(y0 - 2)} ` +
+    `M ${f(jx)} ${f(jy)} L ${f(x0 + bw + 2)} ${f(jy)} ` +
+    `M ${f(jx)} ${f(jy)} L ${f(jx - k)} ${f(jy + k)}`;
+  const lineW = Math.max(1.2, m * 0.012 * p.lw);
+  const pal = XYZ_PAL[p.pal];
+  const isGrad = pal.fill.length > 1;
+  const fillAttr = isGrad ? "url(#xyz-grad)" : pal.fill[0];
+  const gradDef = isGrad
+    ? `<linearGradient id="xyz-grad" gradientUnits="userSpaceOnUse" x1="${f(x0)}" y1="${f(y0)}" x2="${f(x0 + bw)}" y2="${f(y0)}">` +
+      `<stop offset="0" stop-color="${pal.fill[0]}"/><stop offset="1" stop-color="${pal.fill[1]}"/></linearGradient>`
+    : "";
+  const bgRect =
+    p.bg && !p.transparent ? `<rect width="${W}" height="${H}" fill="${p.bg}"/>` : "";
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
+    bgRect +
+    `<defs><clipPath id="xyz-clip"><polygon points="${points}"/></clipPath>${gradDef}</defs>` +
+    `<polygon data-eid="xyz-fill" points="${points}" fill="${fillAttr}"/>` +
+    `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
+    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${pal.line}" ` +
+    `stroke-width="${f(lineW)}" stroke-linejoin="round" stroke-linecap="butt"/>` +
+    `</g></svg>`
+  );
+}
+
 export function renderXyzLineSvg(p: XyzLineParams): string {
   const W = p.size;
   const H = p.size;
+  if (p.animated === false) return renderXyzStatic(p, W, H);
   // 基準（最大）ジオメトリ。draw2 の式（generator3 HTML:790-818）を最大サイズで評価。
   const bw = W * WMAX;
   const bh = H * HMAX;

@@ -138,7 +138,7 @@
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: 36px minmax(0, 1fr) 40px;
+  grid-template-rows: 36px minmax(0, 1fr) 52px;
   position: relative;
   background: var(--paper);
   overflow: hidden;
@@ -170,6 +170,50 @@
   max-width: 100%;
   max-height: 100%;
   filter: drop-shadow(0 0 16px rgba(241, 242, 233, 0.025));
+}
+
+/* 再生バー（トランスポート） */
+.gen-transport {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+.gen-play {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease;
+}
+.gen-play:hover { background: var(--soft); border-color: rgba(241, 242, 233, 0.35); }
+.gen-play svg { width: 12px; height: 12px; fill: currentColor; stroke: none; }
+.gen-seek { flex: 1 1 auto; min-width: 60px; }
+.gen-time {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  min-width: 78px;
+  text-align: right;
+}
+.gen-transport .gen-err {
+  flex: 0 1 auto;
+  color: var(--danger);
+  font-size: 8px;
+  letter-spacing: 0.05em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---------- inspector（唯一のスクロール領域） ---------- */
