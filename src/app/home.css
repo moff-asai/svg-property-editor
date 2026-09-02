@@ -1,0 +1,156 @@
+/* ダッシュボード(/)の orbitype デザイン。すべて .home 配下にスコープし他ページへ波及させない。
+   ジェネレーター(.gen)と同じデザイントークンを使用（フォント変数は layout.tsx の <html> で定義）。 */
+
+.home {
+  --ink: #f1f2e9;
+  --paper: #11120f;
+  --panel: #171814;
+  --line: rgba(241, 242, 233, 0.14);
+  --muted: rgba(241, 242, 233, 0.46);
+  --soft: rgba(241, 242, 233, 0.07);
+  --accent: #d7ff45;
+  --danger: #ff6b5e;
+
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-dm-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-synthesis: none;
+}
+.home * { box-sizing: border-box; }
+.home button,
+.home input,
+.home select { font: inherit; }
+
+/* ---------- topbar ---------- */
+.home-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 22px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(17, 18, 15, 0.92);
+  backdrop-filter: blur(8px);
+}
+.home-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.home-brand-mark { width: 22px; height: 22px; position: relative; display: block; }
+.home-brand-mark i { position: absolute; inset: 4px 1px; border: 1px solid var(--ink); border-radius: 50%; transform: rotate(25deg); }
+.home-brand-mark i:nth-child(2) { transform: rotate(85deg) scaleX(0.65); }
+.home-brand-mark i:nth-child(3) { transform: rotate(-32deg) scaleX(0.7); }
+
+.home-top-actions { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.home-email { color: var(--muted); font-size: 9px; letter-spacing: 0.08em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 30vw; }
+
+/* ---------- buttons ---------- */
+.home-btn {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  padding: 8px 16px;
+  font-size: 10px;
+  letter-spacing: 0.09em;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+.home-btn:hover { background: var(--soft); border-color: rgba(241, 242, 233, 0.35); }
+.home-btn:disabled { opacity: 0.5; cursor: default; }
+.home-btn-primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.home-btn-primary:hover { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+.home-btn-ghost { border-color: transparent; color: var(--muted); padding: 8px 8px; }
+.home-btn-ghost:hover { background: transparent; color: var(--ink); border-color: transparent; }
+
+.home-upload { display: inline-flex; align-items: center; gap: 12px; }
+
+/* ---------- main ---------- */
+.home-main { flex: 1; width: 100%; max-width: 1120px; margin: 0 auto; padding: 40px 24px 64px; }
+.home-section { margin-top: 44px; }
+.home-section:first-child { margin-top: 0; }
+.home-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 14px;
+  margin-bottom: 22px;
+}
+.home-eyebrow { color: var(--muted); font-size: 8px; letter-spacing: 0.14em; }
+.home-section-head h2 { margin: 6px 0 0; font-family: var(--font-manrope), sans-serif; font-size: 20px; font-weight: 400; letter-spacing: -0.02em; }
+.home-count { color: var(--muted); font-size: 9px; letter-spacing: 0.1em; white-space: nowrap; }
+
+/* ---------- grid + cards ---------- */
+.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(258px, 1fr)); gap: 14px; }
+.home-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 118px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  padding: 16px;
+  transition: border-color 180ms ease, background 180ms ease;
+}
+.home-card:hover { border-color: rgba(241, 242, 233, 0.32); background: rgba(241, 242, 233, 0.02); }
+.home-card-title {
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  text-decoration: none;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 180ms ease;
+}
+.home-card-title:hover { color: var(--accent); }
+.home-card-tag { margin-top: 6px; color: var(--muted); font-size: 8px; letter-spacing: 0.1em; text-transform: uppercase; }
+.home-card-foot { margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 8px; letter-spacing: 0.06em; }
+.home-card-foot span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-del { border: 0; background: transparent; color: var(--muted); font-size: 8px; letter-spacing: 0.08em; cursor: pointer; padding: 0; white-space: nowrap; transition: color 180ms ease; }
+.home-del:hover { color: var(--danger); }
+.home-del:disabled { opacity: 0.5; cursor: default; }
+
+/* クリック可能なカード（生成ピッカー用） */
+a.home-card { text-decoration: none; }
+.home-card-desc { margin: 10px 0 0; color: var(--muted); font-size: 9px; line-height: 1.7; letter-spacing: 0.03em; }
+.home-card-cta { margin-top: 16px; color: var(--muted); font-size: 8px; letter-spacing: 0.1em; transition: color 180ms ease; }
+a.home-card:hover .home-card-title,
+a.home-card:hover .home-card-cta { color: var(--accent); }
+
+/* ---------- misc ---------- */
+.home-empty { margin-top: 4px; color: var(--muted); font-size: 10px; line-height: 1.7; letter-spacing: 0.04em; border: 1px dashed var(--line); padding: 30px; text-align: center; }
+.home-error { color: var(--danger); font-size: 9px; letter-spacing: 0.06em; }
+
+@media (max-width: 560px) {
+  .home-topbar { padding: 0 14px; }
+  .home-brand { font-size: 11px; letter-spacing: 0.08em; }
+  .home-email { display: none; }
+  .home-main { padding: 28px 16px 48px; }
+}

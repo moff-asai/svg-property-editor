@@ -29,29 +29,32 @@ export default function GeneratorList({ items }: { items: GeneratorSummary[] }) 
   if (list.length === 0) return null;
 
   return (
-    <div className="mt-10">
-      <h2 className="text-base font-medium">保存した生成物</h2>
-      <ul className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <section className="home-section">
+      <div className="home-section-head">
+        <div>
+          <div className="home-eyebrow">SAVED</div>
+          <h2>保存した生成物</h2>
+        </div>
+        <span className="home-count">{list.length} ITEMS</span>
+      </div>
+      <ul className="home-grid">
         {list.map((g) => (
-          <li
-            key={g.id}
-            className="flex flex-col justify-between rounded-lg border border-black/10 bg-white p-4 dark:border-white/15 dark:bg-zinc-900"
-          >
+          <li key={g.id} className="home-card">
             <Link
               href={`/generate/${g.slug}?id=${g.id}`}
-              className="truncate text-base font-medium text-blue-600 hover:underline"
+              className="home-card-title"
             >
               {g.name}
             </Link>
-            <div className="mt-1 text-xs text-zinc-400">{g.slug}</div>
-            <div className="mt-3 flex items-center justify-between">
-              <span className="text-xs text-zinc-500" suppressHydrationWarning>
+            <div className="home-card-tag">{g.slug}</div>
+            <div className="home-card-foot">
+              <span suppressHydrationWarning>
                 {new Date(g.updated_at).toLocaleString()}
               </span>
               <button
                 onClick={() => del(g)}
                 disabled={deleting === g.id}
-                className="text-xs text-red-600 hover:underline disabled:opacity-60"
+                className="home-del"
               >
                 {deleting === g.id ? "削除中..." : "削除"}
               </button>
@@ -59,6 +62,6 @@ export default function GeneratorList({ items }: { items: GeneratorSummary[] }) 
           </li>
         ))}
       </ul>
-    </div>
+    </section>
   );
 }

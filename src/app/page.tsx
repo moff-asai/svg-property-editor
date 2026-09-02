@@ -4,6 +4,7 @@ import UploadButton from "@/components/UploadButton";
 import DocumentList from "@/components/DocumentList";
 import GeneratorList from "@/components/GeneratorList";
 import SignOutButton from "@/components/SignOutButton";
+import "./home.css";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -22,33 +23,38 @@ export default async function DashboardPage() {
     .order("updated_at", { ascending: false });
 
   return (
-    <div className="flex flex-1 flex-col">
-      <header className="flex items-center justify-between border-b border-black/10 px-6 py-4 dark:border-white/15">
-        <h1 className="text-lg font-semibold">SVG Property Editor</h1>
-        <div className="flex items-center gap-3">
-          {email && (
-            <span className="hidden text-sm text-zinc-500 sm:inline">
-              {email}
-            </span>
-          )}
+    <div className="home">
+      <header className="home-topbar">
+        <Link href="/" className="home-brand">
+          <span className="home-brand-mark">
+            <i />
+            <i />
+            <i />
+          </span>
+          SVG PROPERTY EDITOR
+        </Link>
+        <div className="home-top-actions">
+          {email && <span className="home-email">{email}</span>}
+          <Link href="/generate" className="home-btn">
+            生成 / GENERATE
+          </Link>
+          <UploadButton />
           <SignOutButton />
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-5xl flex-1 px-6 py-8">
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-medium">あなたのSVG</h2>
-          <div className="flex items-center gap-3">
-            <Link
-              href="/generate"
-              className="rounded-md border border-black/15 px-4 py-2 text-sm font-medium hover:bg-black/[.03] dark:border-white/20 dark:hover:bg-white/[.06]"
-            >
-              生成
-            </Link>
-            <UploadButton />
+      <main className="home-main">
+        <section className="home-section">
+          <div className="home-section-head">
+            <div>
+              <div className="home-eyebrow">LIBRARY</div>
+              <h2>あなたのSVG</h2>
+            </div>
+            <span className="home-count">{docs?.length ?? 0} FILES</span>
           </div>
-        </div>
-        <DocumentList docs={docs ?? []} />
+          <DocumentList docs={docs ?? []} />
+        </section>
+
         <GeneratorList items={gens ?? []} />
       </main>
     </div>

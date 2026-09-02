@@ -30,36 +30,27 @@ export default function DocumentList({ docs }: { docs: DocSummary[] }) {
 
   if (items.length === 0) {
     return (
-      <p className="mt-10 text-sm text-zinc-500">
+      <p className="home-empty">
         まだSVGがありません。右上の「SVGをアップロード」から追加してください。
       </p>
     );
   }
 
   return (
-    <ul className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <ul className="home-grid">
       {items.map((doc) => (
-        <li
-          key={doc.id}
-          className="flex flex-col justify-between rounded-lg border border-black/10 bg-white p-4 dark:border-white/15 dark:bg-zinc-900"
-        >
-          <Link
-            href={`/editor/${doc.id}`}
-            className="truncate text-base font-medium text-blue-600 hover:underline"
-          >
+        <li key={doc.id} className="home-card">
+          <Link href={`/editor/${doc.id}`} className="home-card-title">
             {doc.name}
           </Link>
-          <div className="mt-3 flex items-center justify-between">
-            <span
-              className="text-xs text-zinc-500"
-              suppressHydrationWarning
-            >
+          <div className="home-card-foot">
+            <span suppressHydrationWarning>
               {new Date(doc.updated_at).toLocaleString()}
             </span>
             <button
               onClick={() => del(doc)}
               disabled={deleting === doc.id}
-              className="text-xs text-red-600 hover:underline disabled:opacity-60"
+              className="home-del"
             >
               {deleting === doc.id ? "削除中..." : "削除"}
             </button>

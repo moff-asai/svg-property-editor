@@ -20,10 +20,7 @@ export default function SignOutButton() {
   }
 
   return (
-    <button
-      onClick={signOut}
-      className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/[.03] dark:border-white/20 dark:hover:bg-white/[.06]"
-    >
+    <button onClick={signOut} className="home-btn home-btn-ghost">
       ログアウト
     </button>
   );

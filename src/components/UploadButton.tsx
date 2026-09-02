@@ -32,8 +32,8 @@ export default function UploadButton() {
   }
 
   return (
-    <div className="flex items-center gap-3">
-      {error && <span className="text-sm text-red-600">{error}</span>}
+    <div className="home-upload">
+      {error && <span className="home-error">{error}</span>}
       <input
         ref={inputRef}
         type="file"
@@ -44,7 +44,7 @@ export default function UploadButton() {
       <button
         onClick={() => inputRef.current?.click()}
         disabled={busy}
-        className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+        className="home-btn home-btn-primary"
       >
         {busy ? "アップロード中..." : "SVGをアップロード"}
       </button>
