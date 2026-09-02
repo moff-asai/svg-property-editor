@@ -36,7 +36,7 @@ export default async function DashboardPage() {
         <div className="home-top-actions">
           {email && <span className="home-email">{email}</span>}
           <Link href="/generate" className="home-btn">
-            生成 / GENERATE
+            テンプレ / TEMPLATE
           </Link>
           <UploadButton />
           <SignOutButton />

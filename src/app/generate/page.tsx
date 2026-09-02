@@ -24,8 +24,8 @@ export default function GeneratePickerPage() {
         <section className="home-section">
           <div className="home-section-head">
             <div>
-              <div className="home-eyebrow">GENERATE</div>
-              <h2>アイデンティティを生成</h2>
+              <div className="home-eyebrow">TEMPLATE</div>
+              <h2>テンプレ</h2>
             </div>
             <span className="home-count">{GENERATE_CONTENTS.length} CONTENTS</span>
           </div>
@@ -41,7 +41,7 @@ export default function GeneratePickerPage() {
                   <div className="home-card-title">{c.title}</div>
                   <p className="home-card-desc">{c.blurb}</p>
                 </div>
-                <span className="home-card-cta">SVG / MP4 / PNG で生成 →</span>
+                <span className="home-card-cta">SVG / MP4 / PNG で書き出し →</span>
               </Link>
             ))}
           </div>

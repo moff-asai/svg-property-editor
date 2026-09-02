@@ -6,6 +6,10 @@ import { ANIMATION_KEYFRAMES } from "./animations";
 export function serializeSvg(svgRoot: SVGSVGElement): string {
   const clone = svgRoot.cloneNode(true) as SVGSVGElement;
 
+  // 移動/アニメーションで viewBox 範囲外へ出た要素もクリップされないようにする
+  // （UA既定 svg:not(:root){overflow:hidden} をインラインstyleで上書き）
+  clone.style.overflow = "visible";
+
   // エディタが注入した選択/カーソル用スタイルを除去（エクスポートに残さない）
   clone.querySelector("#svged-style")?.remove();
 

@@ -33,7 +33,7 @@ export default function GeneratorList({ items }: { items: GeneratorSummary[] }) 
       <div className="home-section-head">
         <div>
           <div className="home-eyebrow">SAVED</div>
-          <h2>保存した生成物</h2>
+          <h2>保存したテンプレ</h2>
         </div>
         <span className="home-count">{list.length} ITEMS</span>
       </div>

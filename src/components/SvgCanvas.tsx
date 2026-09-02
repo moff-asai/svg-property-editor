@@ -35,6 +35,8 @@ export default function SvgCanvas({
     svg.style.maxWidth = "100%";
     svg.style.maxHeight = "100%";
     svg.style.height = "auto";
+    // 移動/アニメーションを viewBox 範囲でクリップしない（範囲外へも動かせる）
+    svg.style.overflow = "visible";
 
     const style = document.createElementNS(
       "http://www.w3.org/2000/svg",

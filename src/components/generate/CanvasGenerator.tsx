@@ -45,7 +45,7 @@ export default function CanvasGenerator({
           href="/generate"
           className="rounded-md border border-black/15 px-3 py-1.5 text-sm hover:bg-black/[.03] dark:border-white/20 dark:hover:bg-white/[.06]"
         >
-          ← 生成一覧へ
+          ← テンプレ一覧へ
         </Link>
       </div>
     );
@@ -223,13 +223,13 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
     <div className="gen">
       {/* ---------- topbar ---------- */}
       <div className="gen-topbar">
-        <Link href="/generate" className="gen-brand" title="生成一覧へ戻る">
+        <Link href="/generate" className="gen-brand" title="テンプレ一覧へ戻る">
           <span className="gen-brand-mark">
             <i />
             <i />
             <i />
           </span>
-          GENERATE
+          TEMPLATE
         </Link>
 
         <div className="gen-project-meta">
