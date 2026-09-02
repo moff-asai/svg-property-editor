@@ -9,6 +9,7 @@ import { useAutoSave } from "@/lib/hooks/useAutoSave";
 import { serializeSvg, downloadSvg } from "@/lib/svg/serialize";
 import { exportMp4 } from "@/lib/svg/exportVideo";
 import type { EditsMap, ElementEdit } from "@/lib/svg/types";
+import "./generate/orbitype.css";
 
 export default function EditorClient({
   docId,
@@ -104,60 +105,65 @@ export default function EditorClient({
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <header className="flex items-center justify-between gap-4 border-b border-black/10 px-4 py-3 dark:border-white/15">
-        <div className="flex min-w-0 items-center gap-3">
-          <Link
-            href="/"
-            className="shrink-0 rounded-md border border-black/15 px-2.5 py-1.5 text-sm hover:bg-black/[.03] dark:border-white/20 dark:hover:bg-white/[.06]"
-          >
-            ← 一覧
-          </Link>
-          <span className="truncate text-sm font-medium">{name}</span>
+    <div className="gen editor-shell">
+      <div className="gen-topbar">
+        <Link href="/" className="gen-brand" title="一覧へ戻る">
+          <span className="gen-brand-mark">
+            <i />
+            <i />
+            <i />
+          </span>
+          SVG PROPERTY EDITOR
+        </Link>
+
+        <div className="gen-project-meta">
+          <span className="gen-title">{name}</span>
         </div>
-        <div className="flex shrink-0 items-center gap-4">
+
+        <div className="gen-actions">
           <SaveStatus state={saveState} />
-          <button
-            onClick={handleExport}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm font-medium hover:bg-black/[.03] dark:border-white/20 dark:hover:bg-white/[.06]"
-          >
-            SVGを書き出し
+          <button className="gen-tbtn" onClick={handleExport}>
+            SVG
           </button>
           <button
+            className="gen-export"
             onClick={handleExportMp4}
             disabled={mp4Pct !== null}
-            className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
           >
-            {mp4Pct !== null ? `MP4書き出し中 ${mp4Pct}%` : "MP4を書き出し"}
+            <span>
+              {mp4Pct !== null ? `書き出し中 ${mp4Pct}%` : "MP4を書き出し"}
+            </span>
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" />
+            </svg>
           </button>
         </div>
-      </header>
+      </div>
 
       {restore && (
-        <div className="flex items-center justify-between gap-3 border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
+        <div className="gen-banner">
           <span>保存されていないローカル下書きがあります。復元しますか？</span>
-          <span className="flex gap-2">
+          <span className="gen-banner-actions">
             <button
+              className="is-primary"
               onClick={() => {
                 setEdits(restore);
                 setRestore(null);
               }}
-              className="rounded bg-amber-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-amber-700"
             >
               復元
             </button>
-            <button
-              onClick={() => setRestore(null)}
-              className="rounded border border-amber-400 px-2.5 py-1 text-xs hover:bg-amber-100 dark:border-amber-800 dark:hover:bg-amber-900/40"
-            >
-              破棄
-            </button>
+            <button onClick={() => setRestore(null)}>破棄</button>
           </span>
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1">
-        <div className="min-w-0 flex-1">
+      <div className="gen-workspace">
+        <div className="gen-stage-wrap">
+          <div className="gen-stage-toolbar">
+            <span>{name}</span>
+            <span>SVG EDIT</span>
+          </div>
           <SvgCanvas
             baseSvg={baseSvg}
             edits={edits}
@@ -165,8 +171,13 @@ export default function EditorClient({
             onSelect={setSelectedEid}
             containerRef={containerRef}
           />
+          <div className="gen-stage-footer">
+            <span>{selectedEid ? `選択: ${selectedEid}` : "要素を選択"}</span>
+            <span>CLICK TO SELECT</span>
+          </div>
         </div>
-        <aside className="w-80 shrink-0 overflow-y-auto border-l border-black/10 dark:border-white/15">
+
+        <aside className="gen-inspector">
           <PropertyPanel
             selectedEid={selectedEid}
             edit={currentEdit}

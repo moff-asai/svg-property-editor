@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import "../home.css";
 
 export default function LoginPage() {
   return (
@@ -52,32 +53,37 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center p-6">
-      <div className="w-full max-w-sm rounded-xl border border-black/10 bg-white p-8 shadow-sm dark:border-white/15 dark:bg-zinc-900">
-        <h1 className="mb-1 text-xl font-semibold">SVG Property Editor</h1>
-        <p className="mb-6 text-sm text-zinc-500">
-          ログインまたは新規登録してください
-        </p>
+    <div className="auth">
+      <div className="auth-card">
+        <div className="auth-brand">
+          <span className="home-brand-mark">
+            <i />
+            <i />
+            <i />
+          </span>
+          SVG PROPERTY EDITOR
+        </div>
+        <p className="auth-sub">ログインまたは新規登録してください</p>
 
         <form
-          className="flex flex-col gap-3"
+          className="auth-form"
           onSubmit={(e) => {
             e.preventDefault();
             handle("signin");
           }}
         >
-          <label className="flex flex-col gap-1 text-sm">
+          <label className="auth-field">
             メールアドレス
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="rounded-md border border-black/15 px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-white/20 dark:bg-zinc-800"
+              className="auth-input"
               placeholder="you@example.com"
             />
           </label>
-          <label className="flex flex-col gap-1 text-sm">
+          <label className="auth-field">
             パスワード
             <input
               type="password"
@@ -85,21 +91,17 @@ function LoginForm() {
               minLength={6}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="rounded-md border border-black/15 px-3 py-2 text-sm outline-none focus:border-blue-500 dark:border-white/20 dark:bg-zinc-800"
+              className="auth-input"
               placeholder="6文字以上"
             />
           </label>
 
-          {error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600 dark:bg-red-950/40">
-              {error}
-            </p>
-          )}
+          {error && <p className="auth-error">{error}</p>}
 
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+            className="home-btn home-btn-primary auth-submit"
           >
             {loading ? "処理中..." : "ログイン"}
           </button>
@@ -107,7 +109,7 @@ function LoginForm() {
             type="button"
             disabled={loading}
             onClick={() => handle("signup")}
-            className="rounded-md border border-black/15 px-4 py-2 text-sm font-medium hover:bg-black/[.03] disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/[.06]"
+            className="home-btn auth-alt"
           >
             新規登録
           </button>

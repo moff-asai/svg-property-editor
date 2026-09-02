@@ -43,7 +43,7 @@ export default function SvgCanvas({
     style.setAttribute("id", STYLE_ID);
     style.textContent = `${ANIMATION_KEYFRAMES}
 [data-eid]{cursor:pointer;}
-[data-selected="true"]{outline:2px solid #2563eb;outline-offset:1px;}`;
+[data-selected="true"]{outline:2px solid #d7ff45;outline-offset:1px;}`;
     svg.insertBefore(style, svg.firstChild);
 
     applyEdits(svg, edits);
@@ -80,7 +80,7 @@ export default function SvgCanvas({
     <div
       ref={containerRef}
       onClick={handleClick}
-      className="flex h-full w-full items-center justify-center overflow-auto bg-[repeating-conic-gradient(#f4f4f5_0%_25%,#fff_0%_50%)] bg-[length:24px_24px] p-6 dark:bg-[repeating-conic-gradient(#18181b_0%_25%,#0a0a0a_0%_50%)]"
+      className="gen-stage editor-canvas"
     />
   );
 }

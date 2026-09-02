@@ -1,7 +1,8 @@
 /* ダッシュボード(/)の orbitype デザイン。すべて .home 配下にスコープし他ページへ波及させない。
    ジェネレーター(.gen)と同じデザイントークンを使用（フォント変数は layout.tsx の <html> で定義）。 */
 
-.home {
+.home,
+.auth {
   --ink: #f1f2e9;
   --paper: #11120f;
   --panel: #171814;
@@ -10,19 +11,21 @@
   --soft: rgba(241, 242, 233, 0.07);
   --accent: #d7ff45;
   --danger: #ff6b5e;
-
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  background: var(--paper);
   color: var(--ink);
   font-family: var(--font-dm-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
   font-synthesis: none;
 }
-.home * { box-sizing: border-box; }
-.home button,
-.home input,
-.home select { font: inherit; }
+.home *,
+.auth * { box-sizing: border-box; }
+.home button, .home input, .home select,
+.auth button, .auth input, .auth select { font: inherit; }
+
+.home {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+}
 
 /* ---------- topbar ---------- */
 .home-topbar {
@@ -154,3 +157,16 @@ a.home-card:hover .home-card-cta { color: var(--accent); }
   .home-email { display: none; }
   .home-main { padding: 28px 16px 48px; }
 }
+
+/* ---------- 認証（ログイン） ---------- */
+.auth { min-height: 100svh; display: grid; place-items: center; background: var(--paper); padding: 24px; }
+.auth-card { width: 100%; max-width: 360px; border: 1px solid var(--line); background: var(--panel); padding: 34px 30px; }
+.auth-brand { display: flex; align-items: center; gap: 11px; font-family: var(--font-manrope), sans-serif; font-size: 14px; font-weight: 600; letter-spacing: 0.1em; }
+.auth-sub { margin: 12px 0 26px; color: var(--muted); font-size: 9px; letter-spacing: 0.06em; }
+.auth-form { display: flex; flex-direction: column; gap: 16px; }
+.auth-field { display: flex; flex-direction: column; gap: 8px; color: var(--muted); font-size: 8px; letter-spacing: 0.1em; }
+.auth-input { border: 1px solid var(--line); background: var(--paper); color: var(--ink); padding: 11px 12px; font-size: 11px; letter-spacing: 0.03em; }
+.auth-input::placeholder { color: rgba(241, 242, 233, 0.3); }
+.auth-input:focus { outline: none; border-color: rgba(241, 242, 233, 0.4); }
+.auth-error { margin: 0; border: 1px solid rgba(255, 107, 94, 0.4); color: var(--danger); font-size: 9px; letter-spacing: 0.04em; padding: 9px 11px; line-height: 1.6; }
+.auth-submit, .auth-alt { justify-content: center; margin-top: 2px; padding: 11px 16px; }

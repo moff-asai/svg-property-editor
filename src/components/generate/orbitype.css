@@ -296,6 +296,47 @@
 
 .gen-note { padding: 16px 22px 26px; margin: 0; color: var(--muted); font-size: 7px; line-height: 1.7; letter-spacing: 0.04em; }
 
+/* ---------- editor（SVGエディタ）: .gen を流用 ---------- */
+.gen.editor-shell { display: flex; flex-direction: column; }
+.editor-shell .gen-workspace { flex: 1; min-height: 0; }
+
+/* topbar の保存ステータス */
+.gen-save { display: inline-flex; align-items: center; gap: 7px; padding: 0 16px; border-left: 1px solid var(--line); font-size: 9px; letter-spacing: 0.08em; color: var(--muted); white-space: nowrap; }
+.gen-save i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.gen-save.is-saving { color: #f4c430; }
+.gen-save.is-saved { color: var(--accent); }
+.gen-save.is-error { color: var(--danger); }
+.gen-save.is-idle { color: var(--muted); }
+
+/* 未保存下書きの復元バナー */
+.gen-banner { flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 22px; border-bottom: 1px solid var(--line); background: rgba(215, 255, 69, 0.08); color: var(--ink); font-size: 9px; letter-spacing: 0.05em; }
+.gen-banner-actions { display: flex; gap: 8px; }
+.gen-banner button { border: 1px solid var(--line); background: transparent; color: var(--ink); font-size: 8px; letter-spacing: 0.08em; padding: 6px 10px; cursor: pointer; transition: background 180ms ease, color 180ms ease; }
+.gen-banner button.is-primary { background: var(--accent); border-color: var(--accent); color: var(--paper); }
+.gen-banner button:hover { background: var(--soft); }
+.gen-banner button.is-primary:hover { background: var(--ink); }
+
+/* SVGステージ（透過を示す控えめなチェッカー） */
+.editor-canvas {
+  cursor: default;
+  background-color: var(--paper);
+  background-image: repeating-conic-gradient(rgba(241, 242, 233, 0.045) 0% 25%, transparent 0% 50%);
+  background-size: 22px 22px;
+}
+
+/* プロパティ行（塗り/線など） */
+.ed-note { color: var(--muted); font-size: 8px; letter-spacing: 0.06em; }
+.ed-note code { color: var(--ink); }
+.ed-row { margin: 0 0 15px; }
+.ed-row:last-child { margin-bottom: 2px; }
+.ed-row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 8px; letter-spacing: 0.08em; margin-bottom: 8px; }
+.ed-val { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 160px; }
+.ed-paint { display: flex; align-items: center; gap: 6px; }
+.ed-mini { border: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 8px; letter-spacing: 0.06em; padding: 5px 8px; cursor: pointer; transition: color 180ms ease, border-color 180ms ease; }
+.ed-mini:hover { color: var(--ink); border-color: rgba(241, 242, 233, 0.35); }
+.ed-reset { width: calc(100% - 44px); margin: 8px 22px 26px; height: 42px; border: 1px solid rgba(255, 107, 94, 0.5); background: transparent; color: var(--danger); font-size: 9px; letter-spacing: 0.1em; cursor: pointer; transition: background 180ms ease, color 180ms ease; }
+.ed-reset:hover { background: var(--danger); color: var(--paper); }
+
 /* ---------- responsive: 縦積み（モバイルはページスクロール可） ---------- */
 @media (max-width: 900px) {
   .gen { height: auto; min-height: 100svh; overflow: visible; grid-template-rows: 56px auto; }
