@@ -1,0 +1,311 @@
+/* orbitype1.html 由来のジェネレーターUI。すべて .gen 配下にスコープし他ページへ波及させない。
+   要件: inspector（プロパティ部）だけスクロール / stage（コンテンツ）は画面内固定。 */
+
+.gen {
+  --ink: #f1f2e9;
+  --paper: #11120f;
+  --panel: #171814;
+  --line: rgba(241, 242, 233, 0.14);
+  --muted: rgba(241, 242, 233, 0.46);
+  --soft: rgba(241, 242, 233, 0.07);
+  --accent: #d7ff45;
+  --danger: #ff6b5e;
+
+  height: 100svh;
+  min-height: 620px;
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 56px minmax(0, 1fr);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-dm-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-synthesis: none;
+}
+.gen * { box-sizing: border-box; }
+/* font のみ継承。color は各部品が明示指定する（button への color 継承は .gen-export 等の
+   明示色より詳細度が高くなり不可視になるため設定しない）。 */
+.gen button,
+.gen input,
+.gen select { font: inherit; }
+
+/* ---------- topbar ---------- */
+.gen-topbar {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  background: rgba(17, 18, 15, 0.9);
+  position: relative;
+  z-index: 20;
+  min-width: 0;
+}
+.gen-brand {
+  height: 100%;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  color: var(--ink);
+  text-decoration: none;
+  font-family: var(--font-manrope), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  border-right: 1px solid var(--line);
+  white-space: nowrap;
+}
+.gen-brand:hover { background: var(--soft); }
+.gen-brand-mark { width: 22px; height: 22px; position: relative; display: block; }
+.gen-brand-mark i { position: absolute; inset: 4px 1px; border: 1px solid var(--ink); border-radius: 50%; transform: rotate(25deg); }
+.gen-brand-mark i:nth-child(2) { transform: rotate(85deg) scaleX(0.65); }
+.gen-brand-mark i:nth-child(3) { transform: rotate(-32deg) scaleX(0.7); }
+
+.gen-project-meta {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 0 22px;
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  min-width: 0;
+}
+.gen-project-meta .gen-title { color: rgba(241, 242, 233, 0.82); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gen-status { color: rgba(241, 242, 233, 0.65); display: inline-flex; align-items: center; white-space: nowrap; }
+.gen-status i { display: inline-block; width: 5px; height: 5px; margin-right: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px rgba(215, 255, 69, 0.5); }
+.gen-status.is-off i { background: var(--muted); box-shadow: none; }
+
+.gen-actions { display: flex; height: 100%; align-items: stretch; }
+.gen-name {
+  width: 132px;
+  height: 100%;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  padding: 0 14px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+.gen-name::placeholder { color: var(--muted); }
+.gen-name:focus { outline: none; background: var(--soft); }
+
+.gen-tbtn {
+  appearance: none;
+  border: 0;
+  border-left: 1px solid var(--line);
+  background: transparent;
+  cursor: pointer;
+  padding: 0 16px;
+  min-width: 56px;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  transition: background 180ms ease, color 180ms ease;
+}
+.gen-tbtn:hover { background: var(--soft); color: var(--ink); }
+.gen-tbtn.is-active { color: var(--accent); }
+.gen-tbtn:disabled { opacity: 0.5; cursor: default; }
+
+.gen-export {
+  appearance: none;
+  border: 0;
+  border-left: 1px solid var(--line);
+  min-width: 168px;
+  padding: 0 21px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 180ms ease;
+}
+.gen-export:hover { background: var(--accent); }
+.gen-export:disabled { background: var(--soft); color: var(--muted); cursor: default; }
+.gen-export svg { width: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+/* ---------- workspace ---------- */
+.gen-workspace { min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 352px; }
+
+.gen-stage-wrap {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: 36px minmax(0, 1fr) 40px;
+  position: relative;
+  background: var(--paper);
+  overflow: hidden;
+}
+.gen-stage-toolbar,
+.gen-stage-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  padding: 0 16px;
+}
+.gen-stage-toolbar { border-bottom: 1px solid var(--line); }
+.gen-stage-footer { border-top: 1px solid var(--line); }
+.gen-stage-footer .gen-err { color: var(--danger); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.gen-stage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: var(--paper);
+}
+.gen-canvas {
+  max-width: 100%;
+  max-height: 100%;
+  filter: drop-shadow(0 0 16px rgba(241, 242, 233, 0.025));
+}
+
+/* ---------- inspector（唯一のスクロール領域） ---------- */
+.gen-inspector {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-left: 1px solid var(--line);
+  background: var(--panel);
+  scrollbar-width: thin;
+  scrollbar-color: rgba(241, 242, 233, 0.18) transparent;
+}
+.gen-inspector::-webkit-scrollbar { width: 9px; }
+.gen-inspector::-webkit-scrollbar-thumb { background: rgba(241, 242, 233, 0.16); border: 3px solid var(--panel); border-radius: 20px; }
+
+.gen-inspector-head {
+  padding: 20px 22px 18px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+}
+.gen-eyebrow { color: var(--muted); font-size: 8px; letter-spacing: 0.12em; }
+.gen-inspector-head h1 { margin: 8px 0 0; font-family: var(--font-manrope), sans-serif; font-size: 22px; font-weight: 400; letter-spacing: -0.03em; }
+
+.gen-section { padding: 18px 22px 14px; border-bottom: 1px solid var(--line); }
+.gen-section-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.gen-section-title h2 { font-size: 9px; letter-spacing: 0.14em; margin: 0; font-weight: 500; }
+.gen-section-title > span { color: var(--muted); font-size: 8px; }
+
+/* mode switch */
+.gen-mode-switch { display: grid; grid-template-columns: repeat(2, 1fr); border: 1px solid var(--line); }
+.gen-mode-switch button {
+  min-height: 38px;
+  border: 0;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: 0.09em;
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease;
+}
+.gen-mode-switch button:nth-child(2n) { border-right: 0; }
+.gen-mode-switch button:nth-last-child(-n + 2) { border-bottom: 0; }
+.gen-mode-switch button:hover { color: var(--ink); background: rgba(241, 242, 233, 0.035); }
+.gen-mode-switch button.is-active { color: var(--paper); background: var(--ink); }
+
+/* rows */
+.gen-row { display: grid; grid-template-columns: 1fr 52px; align-items: center; gap: 10px; margin: 0 0 16px; color: var(--muted); font-size: 8px; letter-spacing: 0.08em; }
+.gen-row:last-child { margin-bottom: 2px; }
+.gen-row output { text-align: right; color: var(--ink); }
+.gen-row input[type="range"] { grid-column: 1 / -1; }
+
+.gen input[type="range"] {
+  width: 100%;
+  height: 12px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.gen input[type="range"]::-webkit-slider-runnable-track { height: 1px; background: linear-gradient(90deg, var(--ink) var(--fill, 50%), rgba(241, 242, 233, 0.16) var(--fill, 50%)); }
+.gen input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 9px; height: 9px; border-radius: 50%; margin-top: -4px; background: var(--ink); border: 2px solid var(--panel); box-shadow: 0 0 0 1px var(--ink); transition: transform 140ms ease; }
+.gen input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.35); }
+.gen input[type="range"]::-moz-range-track { height: 1px; background: rgba(241, 242, 233, 0.16); }
+.gen input[type="range"]::-moz-range-progress { height: 1px; background: var(--ink); }
+.gen input[type="range"]::-moz-range-thumb { width: 7px; height: 7px; border: 1px solid var(--panel); border-radius: 50%; background: var(--ink); }
+
+/* select / number */
+.gen-field { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 32px; margin: 0 0 14px; color: var(--muted); font-size: 8px; letter-spacing: 0.08em; }
+.gen-select,
+.gen-number {
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  padding: 6px 26px 6px 10px;
+  cursor: pointer;
+  min-width: 96px;
+  border-radius: 0;
+  background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6" fill="none" stroke="%23f1f2e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right 9px center;
+  background-size: 10px;
+}
+.gen-number { background-image: none; padding: 6px 10px; min-width: 84px; text-align: right; cursor: text; }
+.gen-select:focus,
+.gen-number:focus { outline: none; border-color: rgba(241, 242, 233, 0.4); }
+
+/* color */
+.gen-color-row { display: flex; align-items: center; justify-content: space-between; min-height: 33px; margin: 0 0 12px; color: var(--muted); font-size: 8px; letter-spacing: 0.08em; }
+.gen-swatch { position: relative; width: 25px; height: 25px; border: 1px solid var(--line); padding: 3px; cursor: pointer; display: block; }
+.gen-swatch i { display: block; width: 100%; height: 100%; }
+.gen-swatch input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+
+/* switch */
+.gen-switch-row { position: relative; display: flex; align-items: center; justify-content: space-between; min-height: 33px; margin: 0 0 10px; color: var(--muted); font-size: 8px; letter-spacing: 0.08em; }
+.gen-switch { position: relative; display: inline-flex; }
+.gen-switch input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.gen-switch i { width: 30px; height: 16px; padding: 2px; border-radius: 20px; border: 1px solid rgba(241, 242, 233, 0.28); cursor: pointer; transition: background 180ms ease, border-color 180ms ease; }
+.gen-switch i::after { content: ""; display: block; width: 10px; height: 10px; border-radius: 50%; background: var(--muted); transition: transform 180ms ease, background 180ms ease; }
+.gen-switch input:checked + i { background: var(--accent); border-color: var(--accent); }
+.gen-switch input:checked + i::after { transform: translateX(14px); background: var(--paper); }
+
+/* presets */
+.gen-preset-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+.gen-preset {
+  border: 1px solid var(--line);
+  background: transparent;
+  padding: 10px 5px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  transition: color 180ms ease, border-color 180ms ease, background 180ms ease;
+}
+.gen-preset:hover { color: var(--ink); border-color: rgba(241, 242, 233, 0.35); }
+
+.gen-note { padding: 16px 22px 26px; margin: 0; color: var(--muted); font-size: 7px; line-height: 1.7; letter-spacing: 0.04em; }
+
+/* ---------- responsive: 縦積み（モバイルはページスクロール可） ---------- */
+@media (max-width: 900px) {
+  .gen { height: auto; min-height: 100svh; overflow: visible; grid-template-rows: 56px auto; }
+  .gen-workspace { grid-template-columns: 1fr; }
+  .gen-stage-wrap { grid-template-rows: 36px minmax(0, 1fr) 40px; }
+  .gen-stage { min-height: 56svh; }
+  .gen-inspector { border-left: 0; border-top: 1px solid var(--line); overflow-y: visible; }
+  .gen-project-meta { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gen *, .gen *::before, .gen *::after { transition-duration: 0.01ms !important; }
+}

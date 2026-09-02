@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { MULTI_CONTENTS } from "@/lib/identity/registry";
 import type { CanvasRenderer, Params } from "@/lib/identity/types";
@@ -12,6 +12,7 @@ import {
 } from "@/lib/identity/exportCanvasVideo";
 import { saveGenerator } from "@/lib/identity/persist";
 import { downloadSvg } from "@/lib/svg/serialize";
+import "./orbitype.css";
 
 export interface GenInitial {
   id: string;
@@ -22,8 +23,11 @@ export interface GenInitial {
 const EXPORT_W = 1280;
 const EXPORT_H = 720;
 
-const btn =
-  "rounded border border-black/15 px-2 py-1 text-xs hover:bg-black/[.04] dark:border-white/20 dark:hover:bg-white/[.06]";
+// スライダー進捗（--fill）。
+function fill(num: number, min: number, max: number): CSSProperties {
+  const pct = max > min ? ((num - min) / (max - min)) * 100 : 0;
+  return { "--fill": `${Math.max(0, Math.min(100, pct))}%` } as CSSProperties;
+}
 
 export default function CanvasGenerator({
   slug,
@@ -216,132 +220,163 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
   }
 
   return (
-    <div className="flex flex-1 flex-col">
-      <header className="flex items-center justify-between gap-4 border-b border-black/10 px-4 py-3 dark:border-white/15">
-        <div className="flex min-w-0 items-center gap-3">
-          <Link
-            href="/generate"
-            className="shrink-0 rounded-md border border-black/15 px-2.5 py-1.5 text-sm hover:bg-black/[.03] dark:border-white/20 dark:hover:bg-white/[.06]"
-          >
-            ← 生成
-          </Link>
-          <span className="truncate text-sm font-medium">
-            {content.no} {content.title}
+    <div className="gen">
+      {/* ---------- topbar ---------- */}
+      <div className="gen-topbar">
+        <Link href="/generate" className="gen-brand" title="生成一覧へ戻る">
+          <span className="gen-brand-mark">
+            <i />
+            <i />
+            <i />
+          </span>
+          GENERATE
+        </Link>
+
+        <div className="gen-project-meta">
+          <span className="gen-title">
+            {content.no} · {content.title}
+          </span>
+          <span className={`gen-status${playing ? "" : " is-off"}`}>
+            <i />
+            {playing ? "LIVE" : "PAUSED"} · {active.label}
           </span>
         </div>
-        <div className="flex shrink-0 items-center gap-3">
-          {error && <span className="max-w-xs truncate text-sm text-red-600">{error}</span>}
+
+        <div className="gen-actions">
           <input
+            className="gen-name"
             value={name}
             onChange={(e) => {
               setName(e.target.value);
               setSaved(false);
             }}
             placeholder="名前"
-            className="w-28 rounded border border-black/15 px-2 py-1 text-sm dark:border-white/20 dark:bg-zinc-800"
           />
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm font-medium hover:bg-black/[.03] disabled:opacity-60 dark:border-white/20 dark:hover:bg-white/[.06]"
-          >
-            {saving ? "保存中..." : saved ? "保存済み" : "保存"}
+          <button className="gen-tbtn" onClick={handleSave} disabled={saving}>
+            {saving ? "…" : saved ? "SAVED" : "SAVE"}
           </button>
-          <button className={btn} onClick={() => setPlaying((v) => !v)}>
+          <button
+            className={`gen-tbtn${playing ? " is-active" : ""}`}
+            onClick={() => setPlaying((v) => !v)}
+          >
             {playing ? "停止" : "再生"}
           </button>
-          <button
-            onClick={handleSvg}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm font-medium hover:bg-black/[.03] dark:border-white/20 dark:hover:bg-white/[.06]"
-          >
+          <button className="gen-tbtn" onClick={handleSvg}>
             SVG
           </button>
-          <button
-            onClick={handlePng}
-            className="rounded-md border border-black/15 px-3 py-1.5 text-sm font-medium hover:bg-black/[.03] dark:border-white/20 dark:hover:bg-white/[.06]"
-          >
+          <button className="gen-tbtn" onClick={handlePng}>
             PNG
           </button>
-          <button
-            onClick={handleMp4}
-            disabled={mp4Pct !== null}
-            className="rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
-          >
-            {mp4Pct !== null ? `MP4書き出し中 ${mp4Pct}%` : "MP4を書き出し"}
+          <button className="gen-export" onClick={handleMp4} disabled={mp4Pct !== null}>
+            <span>{mp4Pct !== null ? `書き出し中 ${mp4Pct}%` : "MP4を書き出し"}</span>
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14" />
+            </svg>
           </button>
         </div>
-      </header>
+      </div>
 
-      <div className="flex min-h-0 flex-1">
-        <div className="flex min-w-0 flex-1 items-center justify-center overflow-auto bg-zinc-100 p-6 dark:bg-zinc-950">
-          <canvas
-            ref={canvasRef}
-            width={EXPORT_W}
-            height={EXPORT_H}
-            className="max-h-full max-w-full"
-            style={{ aspectRatio: "16 / 9", width: "100%", height: "auto" }}
-          />
+      {/* ---------- workspace ---------- */}
+      <div className="gen-workspace">
+        {/* stage: 画面内固定（スクロールしない） */}
+        <div className="gen-stage-wrap">
+          <div className="gen-stage-toolbar">
+            <span>
+              {content.no} / {active.label}
+            </span>
+            <span>
+              {EXPORT_W}×{EXPORT_H}
+            </span>
+          </div>
+          <div className="gen-stage">
+            <canvas
+              ref={canvasRef}
+              width={EXPORT_W}
+              height={EXPORT_H}
+              className="gen-canvas"
+              style={{ aspectRatio: "16 / 9" }}
+            />
+          </div>
+          <div className="gen-stage-footer">
+            <span>{playing ? "PLAYING" : "PAUSED"}</span>
+            {error ? (
+              <span className="gen-err">{error}</span>
+            ) : (
+              <span>
+                LOOP {loopSeconds}s · {fps}FPS
+              </span>
+            )}
+            <span>16 : 9</span>
+          </div>
         </div>
 
-        <aside className="flex w-80 shrink-0 flex-col gap-5 overflow-y-auto border-l border-black/10 p-4 dark:border-white/15">
+        {/* inspector: プロパティ変更部（唯一のスクロール領域） */}
+        <aside className="gen-inspector">
+          <div className="gen-inspector-head">
+            <div>
+              <div className="gen-eyebrow">IDENTITY / {content.no}</div>
+              <h1>{active.label}</h1>
+            </div>
+          </div>
+
           {content.modes.length > 1 && (
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                モード / MODE
-              </label>
-              <select
-                value={mode}
-                onChange={(e) => switchMode(e.target.value)}
-                className="rounded border border-black/15 px-2 py-1 text-sm dark:border-white/20 dark:bg-zinc-800"
-              >
+            <div className="gen-section">
+              <div className="gen-section-title">
+                <h2>モード / MODE</h2>
+              </div>
+              <div className="gen-mode-switch">
                 {content.modes.map((m) => (
-                  <option key={m.value} value={m.value}>
+                  <button
+                    key={m.value}
+                    className={m.value === mode ? "is-active" : ""}
+                    onClick={() => switchMode(m.value)}
+                  >
                     {m.label}
-                  </option>
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
           )}
 
-          <div className="flex flex-col gap-3">
-            <div className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              出力 / OUTPUT
+          <div className="gen-section">
+            <div className="gen-section-title">
+              <h2>出力 / OUTPUT</h2>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-zinc-500">
-                ループ長: {loopSeconds}s
-              </label>
+            <div className="gen-row">
+              <span>ループ長</span>
+              <output>{loopSeconds}s</output>
               <input
                 type="range"
                 min={2}
                 max={20}
                 step={1}
                 value={loopSeconds}
+                style={fill(loopSeconds, 2, 20)}
                 onChange={(e) => setLoopSeconds(Number(e.target.value))}
               />
             </div>
-            <div className="flex items-center justify-between gap-2">
-              <label className="text-xs font-medium text-zinc-500">FPS</label>
+            <div className="gen-field">
+              <span>FPS</span>
               <select
+                className="gen-select"
                 value={fps}
                 onChange={(e) => setFps(Number(e.target.value))}
-                className="rounded border border-black/15 px-2 py-1 text-sm dark:border-white/20 dark:bg-zinc-800"
               >
                 <option value={24}>24</option>
                 <option value={30}>30</option>
                 <option value={60}>60</option>
               </select>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-zinc-500">
-                ビットレート: {bitrateMbps} Mbps
-              </label>
+            <div className="gen-row">
+              <span>ビットレート</span>
+              <output>{bitrateMbps} Mbps</output>
               <input
                 type="range"
                 min={4}
                 max={40}
                 step={1}
                 value={bitrateMbps}
+                style={fill(bitrateMbps, 4, 40)}
                 onChange={(e) => setBitrateMbps(Number(e.target.value))}
               />
             </div>
@@ -349,18 +384,25 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
 
           <ControlsPanel spec={active.controls} params={params} onChange={applyPatch} />
 
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-zinc-500">プリセット</label>
-            <div className="flex flex-wrap gap-2">
+          <div className="gen-section">
+            <div className="gen-section-title">
+              <h2>プリセット / PRESETS</h2>
+              <span>{active.presets.length}</span>
+            </div>
+            <div className="gen-preset-grid">
               {active.presets.map((preset, i) => (
-                <button key={i} className={btn} onClick={() => applyPatch({ ...preset })}>
+                <button
+                  key={i}
+                  className="gen-preset"
+                  onClick={() => applyPatch({ ...preset })}
+                >
                   {"0" + (i + 1)}
                 </button>
               ))}
             </div>
           </div>
 
-          <p className="text-xs text-zinc-400">
+          <p className="gen-note">
             SVG は XYZ / HEX HALO / LIQUID GLASS は編集可能なベクター（各図形）、3Dモード（DATA
             CUBE / GRID CUBE）は現在フレームを埋め込んだ静止画で書き出します。
           </p>
