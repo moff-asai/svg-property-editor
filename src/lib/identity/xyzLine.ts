@@ -27,6 +27,8 @@ export interface XyzLineParams {
   transparent?: number; // 1で背景 rect を出さない（透過）
   phase?: number; // 静止書き出し時の位相 0..1
   animated?: boolean; // false で phase の静止フレームを出力（アニメ無し）
+  w?: number; // viewBox 幅（未指定時は size）。canvas と同じ比で書き出すため
+  h?: number; // viewBox 高（未指定時は size）
 }
 
 export const XYZ_DEFAULTS: XyzLineParams = {
@@ -139,8 +141,8 @@ function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
 }
 
 export function renderXyzLineSvg(p: XyzLineParams): string {
-  const W = p.size;
-  const H = p.size;
+  const W = p.w ?? p.size;
+  const H = p.h ?? p.size;
   if (p.animated === false) return renderXyzStatic(p, W, H);
   // 基準（最大）ジオメトリ。draw2 の式（generator3 HTML:790-818）を最大サイズで評価。
   const bw = W * WMAX;

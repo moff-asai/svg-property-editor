@@ -117,9 +117,10 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
       }
       const r = rendererRef.current;
       if (r) r.render(ctx, canvas.width, canvas.height, phaseRef.current, paramsRef.current);
-      // 再生バーを現在位相に同期（スクラブ中=フォーカス時は onSeek 側が駆動）
+      // 再生バーを現在位相に同期。再生中は常に追従（スクラブ中は playing=false に
+      // なるため衝突しない）。一時停止＋フォーカス中のみ onSeek 側に委ねる。
       const seek = seekRef.current;
-      if (seek && document.activeElement !== seek) {
+      if (seek && (playingRef.current || document.activeElement !== seek)) {
         seek.value = String(phaseRef.current);
         seek.style.setProperty("--fill", `${(phaseRef.current * 100).toFixed(1)}%`);
       }
@@ -148,7 +149,8 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
 
   // 再生バーでのシーク（停止してその位置を表示。書き出しは phaseRef を使用）
   function seekTo(v: number) {
-    phaseRef.current = ((v % 1) + 1) % 1;
+    // スライダーは [0,1] に制限済み。右端(1)で 0 へ折り返さないよう wrap ではなく clamp。
+    phaseRef.current = Math.min(Math.max(v, 0), 1);
     if (playingRef.current) {
       playingRef.current = false;
       setPlaying(false);

@@ -122,7 +122,10 @@ function createXyzMode(): CanvasRenderer {
         pos: p.pos,
         lw: p.lw,
         loopDur: loopSeconds,
-        size: 1000,
+        size: 900,
+        // canvas(EXPORT_W:H=1280:720=16:9) と同じ比で書き出し、停止フレームと一致させる
+        w: 1600,
+        h: 900,
         bg: p.bg,
         transparent: p.transparent,
         phase,
