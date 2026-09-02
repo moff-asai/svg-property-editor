@@ -10,7 +10,9 @@
     "build:cf": "node --env-file-if-exists=.dev.vars ./node_modules/.bin/opennextjs-cloudflare build",
     "preview": "npm run build:cf && opennextjs-cloudflare preview",
     "deploy": "npm run build:cf && opennextjs-cloudflare deploy",
-    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+    "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
+    "db:update": "npx --yes supabase migration up",
+    "db:backup": "npx --yes supabase db dump --local --data-only -f supabase/backup.sql"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.5",

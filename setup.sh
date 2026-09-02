@@ -35,6 +35,11 @@ say "依存パッケージをインストール"
 say "ローカル Supabase を起動（初回はイメージ取得で数分）"
 npx --yes supabase start >/dev/null 2>&1 || npx --yes supabase start || true
 
+# 既存データを保持したまま、未適用のマイグレーションだけ当てる（db reset は使わない）。
+# 初回は start 時に全適用済みのため no-op。pull 後の再実行で新規分のみ反映される。
+say "DBマイグレーションを適用（新規分のみ・既存データは保持）"
+npx --yes supabase migration up 2>/dev/null || true
+
 say "環境変数ファイルを作成（既にあればスキップ / 値は supabase status から自動取得）"
 if [ ! -f .dev.vars ]; then
   STATUS="$(npx --yes supabase status 2>/dev/null || true)"
