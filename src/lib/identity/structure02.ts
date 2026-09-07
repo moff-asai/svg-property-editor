@@ -8,10 +8,12 @@ import {
   XYZ_LINE_WIDTH_MIN,
   XYZ_LINE_BLEND_MODES,
   XYZ_LINE_COLOR_DEFAULT,
+  XYZ_LINE_OPACITY_DEFAULT,
   XYZ_PAL,
   renderXyzLineSvg,
   xyzLineBlendMode,
   xyzLineColor,
+  xyzLineOpacity,
   type XyzPal,
 } from "./xyzLine";
 import { createMeshPainter, meshParams, MESH_CONTROLS, MESH_DEFAULTS } from "./meshGradient";
@@ -29,8 +31,8 @@ interface XyzModeParams extends XyzFrameParams {
   pos: number;
   lw: number;
   lineBlendMode?: string;
-  lineColorEnabled?: number;
   lineColor?: string;
+  lineOpacity?: number;
   transparent?: number; // 背景透過
 }
 function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number, params: Params,
@@ -66,8 +68,8 @@ function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number
     d = c2 * 0.75 + P.pos * dmax,
     jx = x0 + bw - d,
     jy = y0 + bh - d;
-  ctx.strokeStyle = mesh?.meshLine ?? xyzLineColor(P.pal, P);
-  ctx.globalAlpha = mesh?.meshLineOpacity ?? 1;
+  ctx.strokeStyle = mesh?.meshLine ?? xyzLineColor(P);
+  ctx.globalAlpha = mesh?.meshLineOpacity ?? xyzLineOpacity(P);
   ctx.globalCompositeOperation = xyzLineBlendMode(P.lineBlendMode);
   ctx.lineWidth = Math.max(1.2, m * 0.012 * P.lw);
   ctx.lineJoin = "round";
@@ -98,8 +100,8 @@ function createXyzMode(mesh = false): CanvasRenderer {
         pos: p.pos,
         lw: p.lw,
         lineBlendMode: xyzLineBlendMode(p.lineBlendMode),
-        lineColorEnabled: p.lineColorEnabled,
         lineColor: p.lineColor,
+        lineOpacity: p.lineOpacity,
         loopDur: loopSeconds,
         size: 900,
         // canvas(EXPORT_W:H=1280:720=16:9) と同じ比で書き出し、停止フレームと一致させる
@@ -133,8 +135,8 @@ const XYZ_DEFAULTS: Params = {
   pos: 0.45,
   lw: 4.7,
   lineBlendMode: "soft-light",
-  lineColorEnabled: 0,
   lineColor: XYZ_LINE_COLOR_DEFAULT,
+  lineOpacity: XYZ_LINE_OPACITY_DEFAULT,
   transparent: 1,
 };
 const XYZ_PRESETS: Params[] = [
@@ -184,16 +186,14 @@ const XYZ_CONTROLS: ControlsSpec = [
     "カラー / COLOR",
     [
       ["pal", "パレット", "s", ["purple", "teal", "grad", "ink"]],
-      ["lineColorEnabled", "ラインの色を指定", "c"],
       ["transparent", "背景透過", "c"],
       ["bg", "背景色", "k"],
     ],
   ],
-  [
-    "ライン / LINE",
-    [["lineColor", "ラインの色", "k"]],
-    { key: "lineColorEnabled", equals: 1 },
-  ],
+  ["ライン / LINE", [
+    ["lineColor", "ライン色", "k"],
+    ["lineOpacity", "ライン不透明度", "r", 0, 1, 0.01, ""],
+  ]],
   TUNE_CONTROLS,
 ];
 
