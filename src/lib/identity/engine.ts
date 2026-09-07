@@ -8,10 +8,6 @@ export const RAD = Math.PI / 180;
 
 export const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-export const lerp2 = (a: number[], b: number[], t: number): number[] => [
-  a[0] + (b[0] - a[0]) * t,
-  a[1] + (b[1] - a[1]) * t,
-];
 export const rng = (s: number) => () => (
   (s = (s * 1664525 + 1013904223) | 0), ((s >>> 8) & 0xffffff) / 0x1000000
 );
@@ -130,72 +126,9 @@ export function rgbOf(h: string): number[] {
   const n = parseInt(h.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
-// 明るい背景では加算合成が飛ぶため乗算に切り替える判定
-export function isLightBg(h: string) {
-  const c = rgbOf(h);
-  return c[0] * 0.299 + c[1] * 0.587 + c[2] * 0.114 > 150;
-}
 export function rgba(h: string, a: number) {
   const c = rgbOf(h);
   return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + (a < 0 ? 0 : a > 1 ? 1 : a) + ")";
-}
-export function toHsl(h: string): number[] {
-  const c = rgbOf(h).map((v) => v / 255);
-  const mx = Math.max(...c),
-    mn = Math.min(...c),
-    d = mx - mn;
-  let H = 0;
-  if (d) {
-    H =
-      mx === c[0]
-        ? (c[1] - c[2]) / d + (c[1] < c[2] ? 6 : 0)
-        : mx === c[1]
-          ? (c[2] - c[0]) / d + 2
-          : (c[0] - c[1]) / d + 4;
-    H *= 60;
-  }
-  const L = (mx + mn) / 2,
-    S = d === 0 ? 0 : d / (1 - Math.abs(2 * L - 1));
-  return [H, S, L];
-}
-export function hslCss(h: number, s: number, l: number, a: number) {
-  return (
-    "hsla(" +
-    (((h % 360) + 360) % 360).toFixed(1) +
-    "," +
-    (s * 100).toFixed(1) +
-    "%," +
-    (l * 100).toFixed(1) +
-    "%," +
-    a +
-    ")"
-  );
-}
-export function shifted(hex: string, deg: number, a: number) {
-  const t = toHsl(hex);
-  return hslCss(t[0] + deg, t[1], t[2], a);
-}
-export function mixHex(a: string, b: string, t: number): number[] {
-  const x = rgbOf(a),
-    y = rgbOf(b);
-  return [
-    Math.round(lerp(x[0], y[0], t)),
-    Math.round(lerp(x[1], y[1], t)),
-    Math.round(lerp(x[2], y[2], t)),
-  ];
-}
-export const CMAPS: Record<string, string[]> = {
-  mono: ["#101010", "#454545", "#8a8a8a", "#c8c8c8", "#ffffff"],
-  ice: ["#04070f", "#0d2a5e", "#1f6fb4", "#5fc4e0", "#c6f0ff", "#ffffff"],
-  turbo: ["#30123b", "#4145ab", "#4675ed", "#39a2fc", "#1bcfd4", "#24eca6", "#61fc6c", "#a4fc3b", "#d1e834", "#f3c63a", "#fe9b2d", "#f36315", "#cb2a04"],
-  viridis: ["#440154", "#414487", "#2a788e", "#22a884", "#7ad151", "#fde725"],
-  ember: ["#0b0406", "#3d0a1e", "#8c1f2f", "#d94f2b", "#f5a623", "#ffe8a3"],
-};
-export function cmap(name: string, t: number): number[] {
-  const s = CMAPS[name] || CMAPS.mono;
-  t = clamp(t, 0, 1) * (s.length - 1);
-  const i = Math.min(s.length - 2, Math.floor(t));
-  return mixHex(s[i], s[i + 1], t - i);
 }
 export const cstr = (c: number[], a: number) =>
   "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + a + ")";
@@ -331,73 +264,12 @@ export function softDraw(
   dst.restore();
 }
 
-/* ---------- 3D ---------- */
-export interface Cam {
-  rx: number;
-  ry: number;
-  d: number;
-  u: number;
-  ox: number;
-  oy: number;
-}
-export function pr(cam: Cam, p: number[]): number[] {
-  const cy = Math.cos(cam.ry),
-    sy = Math.sin(cam.ry),
-    cx = Math.cos(cam.rx),
-    sx = Math.sin(cam.rx);
-  const X = p[0] * cy + p[2] * sy;
-  let Z = -p[0] * sy + p[2] * cy;
-  const Y = p[1] * cx - Z * sx;
-  Z = p[1] * sx + Z * cx;
-  const k = cam.d / (cam.d - Z);
-  return [cam.ox + X * cam.u * k, cam.oy - Y * cam.u * k, Z, k];
-}
-export function rot3(cam: Cam, p: number[]): number[] {
-  const cy = Math.cos(cam.ry),
-    sy = Math.sin(cam.ry),
-    cx = Math.cos(cam.rx),
-    sx = Math.sin(cam.rx);
-  const X = p[0] * cy + p[2] * sy;
-  let Z = -p[0] * sy + p[2] * cy;
-  const Y = p[1] * cx - Z * sx;
-  Z = p[1] * sx + Z * cx;
-  return [X, Y, Z];
-}
+/* ---------- path ---------- */
 export function poly(c: CanvasRenderingContext2D, ps: number[][]) {
   c.beginPath();
   c.moveTo(ps[0][0], ps[0][1]);
   for (let i = 1; i < ps.length; i++) c.lineTo(ps[i][0], ps[i][1]);
   c.closePath();
-}
-export function bbox(ps: number[][], pad: number): number[] {
-  let x0 = 1e9,
-    y0 = 1e9,
-    x1 = -1e9,
-    y1 = -1e9;
-  for (const p of ps) {
-    if (p[0] < x0) x0 = p[0];
-    if (p[0] > x1) x1 = p[0];
-    if (p[1] < y0) y0 = p[1];
-    if (p[1] > y1) y1 = p[1];
-  }
-  return [x0 - pad, y0 - pad, x1 - x0 + pad * 2, y1 - y0 + pad * 2];
-}
-export function hull(ps: number[][]): number[][] {
-  const s = ps.map((p) => [p[0], p[1]]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  const cr = (o: number[], a: number[], b: number[]) =>
-    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
-  const lo: number[][] = [],
-    up: number[][] = [];
-  for (const p of s) {
-    while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop();
-    lo.push(p);
-  }
-  for (let i = s.length - 1; i >= 0; i--) {
-    const p = s[i];
-    while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop();
-    up.push(p);
-  }
-  return lo.slice(0, -1).concat(up.slice(0, -1));
 }
 
 /* ---------- finish ---------- */
@@ -457,27 +329,4 @@ export function vignette(c: CanvasRenderingContext2D, W: number, H: number, amt:
   c.fillStyle = g;
   c.fillRect(0, 0, W, H);
   c.restore();
-}
-export function dust(
-  c: CanvasRenderingContext2D,
-  W: number,
-  H: number,
-  S: number,
-  amt: number,
-  seed: number,
-  ph: number,
-) {
-  if (amt <= 0) return;
-  const r = rng(seed),
-    n = Math.round(420 * amt);
-  for (let i = 0; i < n; i++) {
-    const x = r() * W,
-      y = r() * H,
-      base = r();
-    const tw = 0.55 + 0.45 * Math.sin(TAU * (ph * (1 + Math.floor(base * 3)) + base));
-    const a = base * 0.5 * amt * tw,
-      s = (base < 0.06 ? 1.9 : 0.85) * S;
-    c.fillStyle = "rgba(255,255,255," + a.toFixed(3) + ")";
-    c.fillRect(x, y, s, s);
-  }
 }
