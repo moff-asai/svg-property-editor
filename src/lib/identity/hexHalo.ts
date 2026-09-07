@@ -1,5 +1,6 @@
 // dynamic-identity-generator2.html コンテンツ 05「HEX HALO」(内部 TAB 6, HexHalo
-// モジュール HTML:334-661) を移植。raster(canvas 2D)。アルゴリズムは原典と同一。
+// モジュール HTML:334-661) を移植。raster(canvas 2D)。当アプリの方針で glow(後光)は
+// 廃止し、既定は LIQUID GLASS と六角形・スケールを揃えた値に調整（他は原典と同一）。
 import { makeNoise, fillBg } from "./engine";
 import type { CanvasRenderer, ControlsSpec, Params } from "./types";
 
@@ -14,7 +15,6 @@ export interface HexHaloParams {
   distortion: number;
   depth: number;
   fade: number;
-  glow: number;
   bloom: number;
   theme: string; // aurora|neon|mono|sunset|gray
   seed: number;
@@ -31,24 +31,27 @@ export interface HexHaloParams {
   transparent?: number; // 背景透過（1でclear）
 }
 
+// 既定は当セッションで SAVE 済みの状態を採用（glow/bloom=0, distortion 71 等）。
+// ただし六角形は LIQUID GLASS に合わせて: hexRot 30（正六角形の頂点上=ポインティ
+// トップ／傾き修正）、hexSize 0.13（穴を LG と同径に）、zoom 1.10（ハロー外径を
+// LG の halfH≈350 に一致）へ調整。glow は廃止。
 export const HEX_HALO_DEFAULTS: HexHaloParams = {
   spacing: 11,
   maxDot: 7.5,
-  hexSize: 0.205,
-  hexRot: 14,
+  hexSize: 0.13,
+  hexRot: 30,
   innerR: 150,
   outerR: 505,
-  flowSpeed: 0.5,
-  distortion: 16,
-  depth: 0.85,
+  flowSpeed: 1.25,
+  distortion: 71,
+  depth: 1.55,
   fade: 34,
-  glow: 0.35,
-  bloom: 7,
+  bloom: 0,
   theme: "aurora",
   seed: 1234,
   bg: "#ffffff",
   pattern: 1,
-  zoom: 1,
+  zoom: 1.1,
   hexConcave: 0,
   transparent: 1,
   v0: 0,
@@ -61,29 +64,19 @@ export const HEX_HALO_DEFAULTS: HexHaloParams = {
 
 // PRESETS[6] (HTML:2133-2138)
 export const HEX_HALO_PRESETS: Partial<HexHaloParams>[] = [
-  { theme: "aurora", pattern: 1, distortion: 16, glow: 0.35, bloom: 7, bg: "#ffffff" },
-  { theme: "neon", pattern: 3, distortion: 48, glow: 0.55, bloom: 12, bg: "#0d0d0d" },
+  { theme: "aurora", pattern: 1, distortion: 16, bloom: 7, bg: "#ffffff" },
+  { theme: "neon", pattern: 3, distortion: 48, bloom: 12, bg: "#0d0d0d" },
   { theme: "sunset", pattern: 4, distortion: 28, v0: 0.4, v3: 0.4, bg: "#ffffff" },
-  { theme: "gray", pattern: 1, distortion: 8, glow: 0.2, bloom: 4, bg: "#ffffff" },
+  { theme: "gray", pattern: 1, distortion: 8, bloom: 4, bg: "#ffffff" },
 ];
 
-// CTL6 (HTML:2011-2042)
+// controls: LIQUID GLASS と共通の並び（表示→中央の六角形→フォルム→色→モーション→背景）に
+// 揃え、モード切替時も同機能セクションが同じ位置に来るようにする。
 export const HEX_HALO_CONTROLS: ControlsSpec = [
+  ["表示 / VIEW", [["zoom", "ズーム", "r", 0.5, 1.6, 0.05, "×"]]],
   [
-    "カラー / COLOR",
+    "中央の六角形 / CENTER",
     [
-      ["theme", "テーマ", "o", [["aurora", "オーロラ"], ["neon", "ネオン"], ["mono", "モノ"], ["sunset", "サンセット"], ["gray", "グレー"]]],
-      ["transparent", "背景透過", "c"],
-      ["bg", "背景色", "k"],
-      ["pattern", "うねり", "o", [["1", "フロー"], ["3", "渦"], ["4", "収束"]]],
-    ],
-  ],
-  [
-    "フォルム / FORM",
-    [
-      ["zoom", "全体スケール", "r", 0.5, 1.6, 0.05, "×"],
-      ["spacing", "ドット間隔", "r", 8, 20, 1, ""],
-      ["maxDot", "ドット最大径", "r", 3, 14, 0.5, ""],
       ["hexSize", "穴サイズ", "r", 0.13, 0.3, 0.005, ""],
       ["hexRot", "回転", "r", 0, 60, 1, "°"],
       ["hexConcave", "辺の凹み", "r", 0, 0.4, 0.01, ""],
@@ -93,19 +86,39 @@ export const HEX_HALO_CONTROLS: ControlsSpec = [
       ["v3", "頂点4 伸び（左）", "r", 0, 1, 0.02, ""],
       ["v4", "頂点5 伸び（左上）", "r", 0, 1, 0.02, ""],
       ["v5", "頂点6 伸び（右上）", "r", 0, 1, 0.02, ""],
+    ],
+  ],
+  [
+    "フォルム / FORM",
+    [
+      ["spacing", "ドット間隔", "r", 8, 20, 1, ""],
+      ["maxDot", "ドット最大径", "r", 3, 14, 0.5, ""],
       ["innerR", "最小半径", "r", 150, 420, 5, ""],
       ["outerR", "最大半径", "r", 300, 530, 5, ""],
+    ],
+  ],
+  [
+    "色 / COLOR",
+    [
+      ["theme", "テーマ", "o", [["aurora", "オーロラ"], ["neon", "ネオン"], ["mono", "モノ"], ["sunset", "サンセット"], ["gray", "グレー"]]],
     ],
   ],
   [
     "モーション / MOTION",
     [
       ["flowSpeed", "流動スピード", "r", 0, 2, 0.05, ""],
+      ["pattern", "うねり", "o", [["1", "フロー"], ["3", "渦"], ["4", "収束"]]],
       ["distortion", "うねりの強さ", "r", 0, 132, 1, ""],
       ["depth", "立体感", "r", 0.4, 2, 0.05, ""],
       ["fade", "穴まわりの透過", "r", 8, 90, 2, ""],
-      ["glow", "グロー", "r", 0, 1, 0.05, ""],
       ["bloom", "ブルーム", "r", 0, 40, 1, ""],
+    ],
+  ],
+  [
+    "背景 / BACKGROUND",
+    [
+      ["transparent", "背景透過", "c"],
+      ["bg", "背景色", "k"],
       ["seed", "シード", "n"],
     ],
   ],
@@ -121,24 +134,6 @@ const THEMES: Record<string, { h0: number; h1: number; sat: number }> = {
   sunset: { h0: 330, h1: 402, sat: 86 },
   gray: { h0: 0, h1: 0, sat: 0 },
 };
-const BLOBS = [
-  { r: 96, g: 120, b: 255 },
-  { r: 64, g: 205, b: 255 },
-  { r: 186, g: 110, b: 255 },
-  { r: 255, g: 118, b: 214 },
-];
-const SUNSET_BLOBS = [
-  { r: 255, g: 150, b: 90 },
-  { r: 255, g: 110, b: 150 },
-  { r: 255, g: 90, b: 190 },
-  { r: 255, g: 180, b: 110 },
-];
-const GRAY_BLOBS = [
-  { r: 185, g: 188, b: 196 },
-  { r: 220, g: 222, b: 228 },
-  { r: 160, g: 163, b: 172 },
-  { r: 205, g: 207, b: 214 },
-];
 const SECTOR = Math.PI / 3;
 const TAU = Math.PI * 2;
 const HEX_CR = 1.1547005;
@@ -195,8 +190,6 @@ interface View {
   S: number;
   dotCv: HTMLCanvasElement;
   dotCtx: CanvasRenderingContext2D;
-  glowCv: HTMLCanvasElement;
-  glowCtx: CanvasRenderingContext2D;
 }
 
 export function createHexHalo(): CanvasRenderer {
@@ -257,56 +250,12 @@ export function createHexHalo(): CanvasRenderer {
     const dotCv = document.createElement("canvas");
     dotCv.width = S;
     dotCv.height = S;
-    const glowCv = document.createElement("canvas");
-    glowCv.width = 160;
-    glowCv.height = 160;
     return {
       k,
       S,
       dotCv,
       dotCtx: dotCv.getContext("2d") as CanvasRenderingContext2D,
-      glowCv,
-      glowCtx: glowCv.getContext("2d") as CanvasRenderingContext2D,
     };
-  }
-
-  function drawGlow(view: View, t: number) {
-    const g = view.glowCtx,
-      G = 160,
-      sc = G / BASE;
-    const hexR = P.hexSize * BASE;
-    const ringMid = ((Math.max(hexR, P.innerR) + P.outerR) / 2) * sc,
-      ctr = G / 2;
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.clearRect(0, 0, G, G);
-    g.globalCompositeOperation = "lighter";
-    const blobs = P.theme === "sunset" ? SUNSET_BLOBS : P.theme === "gray" ? GRAY_BLOBS : BLOBS;
-    for (let i = 0; i < 4; i++) {
-      const ang = i * (Math.PI / 2) + 0.6 + noise(i * 7.3 + 2, 5, t * 0.14) * 1.8;
-      const rad = ringMid * (0.85 + 0.25 * noise(i * 7.3 + 40, 9, t * 0.11));
-      const bx = ctr + Math.cos(ang) * rad,
-        by = ctr + Math.sin(ang) * rad;
-      const br = G * (0.3 + 0.07 * noise(i * 7.3 + 80, 3, t * 0.1));
-      const b = blobs[i];
-      const rg = g.createRadialGradient(bx, by, 0, bx, by, br);
-      rg.addColorStop(0, "rgba(" + b.r + "," + b.g + "," + b.b + ",0.7)");
-      rg.addColorStop(1, "rgba(" + b.r + "," + b.g + "," + b.b + ",0)");
-      g.fillStyle = rg;
-      g.beginPath();
-      g.arc(bx, by, br, 0, Math.PI * 2);
-      g.fill();
-    }
-    g.globalCompositeOperation = "destination-out";
-    const er0 = hexR * 0.55 * sc,
-      er1 = hexR * 1.35 * sc;
-    const eg = g.createRadialGradient(ctr, ctr, er0, ctr, ctr, er1);
-    eg.addColorStop(0, "rgba(0,0,0,1)");
-    eg.addColorStop(1, "rgba(0,0,0,0)");
-    g.fillStyle = eg;
-    g.beginPath();
-    g.arc(ctr, ctr, er1, 0, Math.PI * 2);
-    g.fill();
-    g.globalCompositeOperation = "source-over";
   }
 
   // ドット群を計算し、各ドットごとに plot を呼ぶ（canvas 描画とベクターSVG出力で共有）
@@ -443,13 +392,6 @@ export function createHexHalo(): CanvasRenderer {
     if (!transparent) {
       targetCtx.fillStyle = P.bg;
       targetCtx.fillRect(0, 0, S, S);
-    }
-    if (P.glow > 0) {
-      drawGlow(view, t);
-      targetCtx.globalAlpha = P.glow;
-      const zo = (1 - P.zoom) * S * 0.5;
-      targetCtx.drawImage(view.glowCv, zo, zo, S * P.zoom, S * P.zoom);
-      targetCtx.globalAlpha = 1;
     }
     if (P.bloom > 0) {
       targetCtx.filter = "blur(" + P.bloom * view.k + "px)";

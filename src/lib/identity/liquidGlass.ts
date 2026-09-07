@@ -1,8 +1,9 @@
 // dynamic-identity-generator3.html コンテンツ 03「LIQUID GLASS / HALFTONE FIELD」
-// (drawC3 HTML:1644-1742 ほか) を移植。orbitype 方式のドット場＋中央の形状(soft/glass)。
-// raster（getImageDataで色サンプリング・ブラー）。アルゴリズムは原典と同一。
-// 注: 原典の「円ごとの設定(PER BLOB, 'p')」UIは今回のコントロールには含めず、
-//     circles は既定値を使用する。
+// (drawC3 HTML:1644-1742 ほか) を移植。orbitype 方式のドット場＋中央の六角形の抜き穴。
+// raster（getImageDataで色サンプリング・ブラー）。
+// 注: HEX HALO と大きさ・位置を揃えるため既定を調整。中央形状のモード(soft/glass)・
+//     白ぬり・背景ハニカム・質感(グレイン/ビネット)は当アプリの方針で廃止し、
+//     モードは soft 相当（六角形の抜き穴）に固定。円ごとの設定(PER BLOB)は非対応。
 import {
   TAU,
   RAD,
@@ -13,8 +14,6 @@ import {
   smoothstep,
   mulberry32,
   softDraw,
-  vignette,
-  grain,
   fillBg,
   LayerCache,
 } from "./engine";
@@ -33,15 +32,9 @@ interface CircleDef {
 export interface LiquidGlassParams {
   zoom: number;
   bg: string;
-  hexMode: string; // soft|glass|none
   hexR: number;
   hexRot: number;
   hexSpin: number;
-  white: number;
-  softBlur: number;
-  glass: number;
-  rim: number;
-  refract: number;
   hexMask: number;
   halftone: number;
   density: number;
@@ -68,62 +61,9 @@ export interface LiquidGlassParams {
   wobble: number;
   blur: number;
   scale: number;
-  grid: number;
-  gridColor: string;
-  gridOpacity: number;
-  gridCell: number;
-  gridFade: number;
-  gridW: number;
-  grain: number;
-  vignette: number;
   seed: number;
   circles: CircleDef[];
   transparent?: number; // 背景透過（1でclear）
-}
-
-function honeyGrid(
-  c: CanvasRenderingContext2D,
-  W: number,
-  H: number,
-  P: LiquidGlassParams,
-  S: number,
-  cache: LayerCache,
-) {
-  const L = cache.get("c3g", W, H),
-    x = L.x;
-  const R = P.gridCell * S,
-    px = 1.5 * R,
-    pz = Math.sqrt(3) * R;
-  x.strokeStyle = rgba(P.gridColor, 1);
-  x.lineWidth = Math.max(0.4, P.gridW * S);
-  x.beginPath();
-  const qn = Math.ceil(W / px) + 1,
-    rn = Math.ceil(H / pz) + 1;
-  for (let q = -qn; q <= qn; q++)
-    for (let r = -rn; r <= rn; r++) {
-      const cx = W / 2 + px * q,
-        cy = H / 2 + pz * (r + q / 2);
-      if (cx < -R * 2 || cx > W + R * 2 || cy < -R * 2 || cy > H + R * 2) continue;
-      for (let k = 0; k < 6; k++) {
-        const a1 = (TAU * k) / 6,
-          a2 = (TAU * (k + 1)) / 6;
-        x.moveTo(cx + R * Math.cos(a1), cy + R * Math.sin(a1));
-        x.lineTo(cx + R * Math.cos(a2), cy + R * Math.sin(a2));
-      }
-    }
-  x.stroke();
-  x.globalCompositeOperation = "destination-in";
-  const g = x.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, Math.max(W, H) * 0.6);
-  const inner = clamp(1 - P.gridFade, 0.02, 0.96);
-  g.addColorStop(0, "rgba(0,0,0,1)");
-  g.addColorStop(inner, "rgba(0,0,0,1)");
-  g.addColorStop(1, "rgba(0,0,0,0)");
-  x.fillStyle = g;
-  x.fillRect(0, 0, W, H);
-  x.globalCompositeOperation = "source-over";
-  c.globalAlpha = P.gridOpacity;
-  c.drawImage(L.c, 0, 0);
-  c.globalAlpha = 1;
 }
 
 function wobblyRing(
@@ -136,7 +76,12 @@ function wobblyRing(
   H: number,
 ) {
   const w = P.wobble * cc.wob;
-  const R = cc.r * H * P.scale * P.zoom;
+  // 「円のスケール」を大きくすると各ブラー円の着色帯が画面外へ逃げ、ドットが白(base)へ
+  // フォールバックして色が飛ぶ。knee(2.2)を超える分は半径の伸びを緩やかに圧縮し、
+  // スケールを大きくしても着色帯が画面内に残って色が全ドットへ反映されるようにする。
+  // scale≦2.2（既定=1 を含む）は等倍で原典と同一。
+  const sEff = P.scale <= 2.2 ? P.scale : 2.2 + (P.scale - 2.2) * 0.35;
+  const R = cc.r * H * sEff * P.zoom;
   const f1 = 1 + (i % 2),
     f2 = 2 + (i % 3),
     f3 = 3 + (i % 2);
@@ -174,17 +119,6 @@ function inHex(px: number, py: number, cx: number, cy: number, r: number, rot: n
     if (dx * Math.cos(m) + dy * Math.sin(m) > inr) return false;
   }
   return true;
-}
-function hexPath(x: CanvasRenderingContext2D, cx: number, cy: number, r: number, rot: number) {
-  x.beginPath();
-  for (let k = 0; k < 6; k++) {
-    const a = rot + (TAU * k) / 6 - Math.PI / 2;
-    const px = cx + r * Math.cos(a),
-      py = cy + r * Math.sin(a);
-    if (k === 0) x.moveTo(px, py);
-    else x.lineTo(px, py);
-  }
-  x.closePath();
 }
 const spacingPx = (P: LiquidGlassParams, u: number) =>
   (2.06 / (Math.max(17, Math.round(P.density)) - 1)) * u;
@@ -258,7 +192,6 @@ function drawC3(
   c.filter = "none";
   c.globalCompositeOperation = "source-over";
   fillBg(c, W, H, P.bg, !!P.transparent);
-  if (P.grid && P.gridOpacity > 0) honeyGrid(c, W, H, P, S, cache);
 
   const q = 0.5,
     fw = Math.max(2, Math.round(W * q)),
@@ -292,7 +225,7 @@ function drawC3(
       const rx = cellPx * 0.5 * P.dotScale * (0.35 + 0.75 * Math.sqrt(dt.i));
       const ry = rx * P.dotAspect;
       if (rx < 0.25) continue;
-      if (P.hexMask && P.hexMode !== "none" && inHex(px, py, W / 2, H / 2, hr, rot, -rx)) continue;
+      if (P.hexMask && inHex(px, py, W / 2, H / 2, hr, rot, -rx)) continue;
       let col = base,
         sa = 1;
       if (P.dotSource === "blob") {
@@ -313,86 +246,18 @@ function drawC3(
   } else {
     softDraw(c, F.c, P.blur * S * q, 1, "source-over", W, H, cache);
   }
-
-  if (P.hexMode === "soft") {
-    const L = cache.get("c3h", Math.round(W * 0.5), Math.round(H * 0.5)),
-      hx = L.x;
-    hx.save();
-    hx.scale(0.5, 0.5);
-    hexPath(hx, W / 2, H / 2, hr, rot);
-    hx.fillStyle = "rgba(255,255,255," + P.white + ")";
-    hx.fill();
-    hx.restore();
-    softDraw(c, L.c, Math.max(2, P.softBlur) * S * 0.5, 1, "source-over", W, H, cache);
-  } else if (P.hexMode === "glass") {
-    const T = cache.get("c3t", Math.round(W * 0.5), Math.round(H * 0.5));
-    T.x.drawImage(c.canvas, 0, 0, T.c.width, T.c.height);
-    c.save();
-    hexPath(c, W / 2, H / 2, hr, rot);
-    c.clip();
-    if (P.glass > 0) softDraw(c, T.c, P.glass * S * 0.5, 1, "source-over", W, H, cache);
-    else c.drawImage(T.c, 0, 0, W, H);
-    if (P.refract > 0) {
-      c.save();
-      hexPath(c, W / 2, H / 2, hr * clamp(1 - P.refract * 0.22, 0.4, 0.99), rot);
-      c.globalCompositeOperation = "destination-out";
-      c.fillStyle = "#000";
-      c.fill();
-      c.restore();
-      c.save();
-      hexPath(c, W / 2, H / 2, hr, rot);
-      c.clip();
-      c.translate(W / 2, H / 2);
-      c.scale(1 + P.refract * 0.1, 1 + P.refract * 0.1);
-      c.translate(-W / 2, -H / 2);
-      c.globalAlpha = 0.9;
-      c.drawImage(T.c, 0, 0, W, H);
-      c.globalAlpha = 1;
-      c.restore();
-      c.save();
-      hexPath(c, W / 2, H / 2, hr, rot);
-      c.clip();
-    }
-    c.fillStyle = "rgba(255,255,255," + P.white + ")";
-    c.fillRect(0, 0, W, H);
-    if (P.rim > 0) {
-      const g = c.createLinearGradient(W / 2 - hr, H / 2 - hr, W / 2 + hr, H / 2 + hr);
-      g.addColorStop(0, "rgba(255,255,255," + P.rim * 0.6 + ")");
-      g.addColorStop(0.45, "rgba(255,255,255,0)");
-      g.addColorStop(1, "rgba(255,255,255," + P.rim * 0.32 + ")");
-      c.fillStyle = g;
-      c.fillRect(0, 0, W, H);
-    }
-    if (P.refract > 0) c.restore();
-    c.restore();
-    if (P.rim > 0) {
-      c.save();
-      hexPath(c, W / 2, H / 2, hr, rot);
-      c.strokeStyle = "rgba(255,255,255," + clamp(0.22 + P.rim * 0.6, 0, 1) + ")";
-      c.lineWidth = Math.max(0.8, 1.4 * S);
-      c.stroke();
-      c.restore();
-    }
-  }
-  vignette(c, W, H, P.vignette);
-  grain(c, W, H, P.grain, ph);
 }
 
 // defaults (D3 HTML:2039-2058)
 // 既定値は Downloads のスクリーンショット3枚（generator3 の LIQUID GLASS 設定）に準拠。
 // transparent は当アプリの方針として維持（bg は透過ONなら無視）。
 export const LIQUID_GLASS_DEFAULTS: LiquidGlassParams = {
-  zoom: 0.65,
+  // zoom 1.36 / hexR 0.125 は HEX HALO とハローの外径・六角穴の径が揃うよう調整済み。
+  zoom: 1.36,
   bg: "#000000",
-  hexMode: "soft",
-  hexR: 0.175,
+  hexR: 0.125,
   hexRot: 0,
   hexSpin: 0,
-  white: 0,
-  softBlur: 26,
-  glass: 44,
-  rim: 0.7,
-  refract: 0.22,
   hexMask: 1,
   halftone: 1,
   density: 49,
@@ -419,14 +284,6 @@ export const LIQUID_GLASS_DEFAULTS: LiquidGlassParams = {
   wobble: 1,
   blur: 80,
   scale: 1,
-  grid: 0,
-  gridColor: "#9aa0b5",
-  gridOpacity: 0,
-  gridCell: 22,
-  gridFade: 0.6,
-  gridW: 1,
-  grain: 0.06,
-  vignette: 0.15,
   seed: 77,
   transparent: 1,
   circles: [
@@ -439,34 +296,29 @@ export const LIQUID_GLASS_DEFAULTS: LiquidGlassParams = {
   ],
 };
 
-// presets (PRESETS[3] HTML:2427-2432)
+// presets（原典 PRESETS[3] を、モード=soft固定・ハニカム/ガラス廃止に合わせて再構成）
 export const LIQUID_GLASS_PRESETS: Partial<LiquidGlassParams>[] = [
-  { hexMode: "soft", white: 0.95, softBlur: 26, halftone: 1, dotSource: "blob", blend: "lighter", bg: "#000000", grid: 0, swirl: 1.15, turbulence: 0.55 },
-  { hexMode: "soft", white: 1, softBlur: 34, halftone: 1, dotSource: "solid", dotColor: "#ffffff", bg: "#000000", grid: 0, swirl: 1.9, turbulence: 1.1, density: 120, thickness: 0.2, ringR: 0.66 },
-  { hexMode: "glass", white: 0.14, glass: 44, rim: 0.7, halftone: 0, blend: "lighter", bg: "#050508", grid: 1, gridOpacity: 0.2, gridCell: 30, blur: 80 },
-  { hexMode: "none", halftone: 1, dotSource: "blob", blend: "lighter", bg: "#000000", grid: 1, gridOpacity: 0.12, gridCell: 22, density: 140, ringR: 0.5, thickness: 0.5, swirl: 0.4, turbulence: 0.2, dotScale: 0.7 },
+  { halftone: 1, dotSource: "blob", blend: "lighter", bg: "#000000", swirl: 1.15, turbulence: 0.55, scale: 1 },
+  { halftone: 1, dotSource: "solid", dotColor: "#ffffff", bg: "#000000", swirl: 1.9, turbulence: 1.1, density: 120, thickness: 0.2, ringR: 0.66 },
+  { halftone: 1, dotSource: "blob", blend: "lighter", bg: "#050508", swirl: 0.6, turbulence: 0.4, blur: 110, scale: 2, density: 60 },
+  { halftone: 1, dotSource: "blob", blend: "lighter", bg: "#000000", density: 140, ringR: 0.5, thickness: 0.5, swirl: 0.4, turbulence: 0.2, dotScale: 0.7 },
 ];
 
-// controls (CTL3 HTML:2186-2238, VIEW3/FIN 展開。PER BLOB 'p' は除外)
+// controls: HEX HALO と共通の並び（表示→中央の六角形→フォルム→色→モーション→背景）に
+// 揃え、モード切替時も同機能セクションが同じ位置に来るようにする。
 export const LIQUID_GLASS_CONTROLS: ControlsSpec = [
   ["表示 / VIEW", [["zoom", "ズーム", "r", 0.3, 2.6, 0.01, "×"]]],
   [
-    "中央の形状 / CENTER",
+    "中央の六角形 / CENTER",
     [
-      ["hexMode", "モード", "s", ["soft", "glass", "none"]],
-      ["hexR", "サイズ", "r", 0.05, 0.62, 0.005, ""],
-      ["white", "白の不透明度", "r", 0, 1, 0.01, ""],
-      ["softBlur", "ソフトのぼかし", "r", 0, 120, 1, "px"],
-      ["glass", "ガラスの背景ぼかし", "r", 0, 80, 1, "px"],
-      ["refract", "ガラスの縁の屈折", "r", 0, 1, 0.01, ""],
-      ["rim", "ガラスの縁ハイライト", "r", 0, 1, 0.01, ""],
-      ["hexMask", "内側のドットを抜く", "c"],
+      ["hexR", "穴サイズ", "r", 0.05, 0.62, 0.005, ""],
       ["hexRot", "回転", "r", 0, 360, 1, "°"],
       ["hexSpin", "1ループの回転数", "r", -2, 2, 1, "周"],
+      ["hexMask", "内側のドットを抜く", "c"],
     ],
   ],
   [
-    "ドット場 / HALFTONE",
+    "フォルム / FORM",
     [
       ["halftone", "ドット表現", "c"],
       ["density", "密度（格子数）", "r", 24, 180, 1, ""],
@@ -483,8 +335,6 @@ export const LIQUID_GLASS_CONTROLS: ControlsSpec = [
       ["dotAspect", "ドット縦横比", "r", 0.3, 2.4, 0.01, ""],
       ["fieldRot", "場の回転", "r", -180, 180, 1, "°"],
       ["fieldScale", "場のスケール", "r", 0.4, 1.8, 0.01, ""],
-      ["animA", "歪みの周回数", "r", 0, 3, 1, "周"],
-      ["animB", "渦の周回数", "r", 0, 3, 1, "周"],
     ],
   ],
   [
@@ -494,29 +344,23 @@ export const LIQUID_GLASS_CONTROLS: ControlsSpec = [
       ["dotColor", "単色時のカラー", "k"],
       ["dotAlpha", "ドットの不透明度", "r", 0, 1, 0.01, ""],
       ["count", "ブラー円の数", "r", 1, 6, 1, ""],
-      ["scale", "円のスケール", "r", 0.4, 2, 0.01, ""],
+      ["scale", "円のスケール", "r", 0.4, 6, 0.01, ""],
       ["blur", "円のブラー", "r", 0, 140, 1, "px"],
       ["wobble", "円の揺らぎ", "r", 0, 3, 0.05, ""],
       ["blend", "円の合成", "s", ["source-over", "lighter", "multiply"]],
     ],
   ],
   [
-    "背景ハニカム / GRID",
+    "モーション / MOTION",
     [
-      ["grid", "ハニカムを描く", "c"],
-      ["gridColor", "色", "k"],
-      ["gridOpacity", "濃度", "r", 0, 1, 0.01, ""],
-      ["gridCell", "セルサイズ", "r", 8, 140, 1, "px"],
-      ["gridW", "線の太さ", "r", 0.3, 3, 0.05, "px"],
-      ["gridFade", "フチの透過", "r", 0, 1, 0.01, ""],
+      ["animA", "歪みの周回数", "r", 0, 3, 1, "周"],
+      ["animB", "渦の周回数", "r", 0, 3, 1, "周"],
     ],
   ],
   [
-    "質感 / FINISH",
+    "背景 / BACKGROUND",
     [
       ["transparent", "背景透過", "c"],
-      ["grain", "グレイン", "r", 0, 1, 0.01, ""],
-      ["vignette", "ビネット", "r", 0, 1, 0.01, ""],
       ["bg", "背景色", "k"],
       ["seed", "シード", "n"],
     ],
@@ -531,8 +375,8 @@ const rgbHex = (c: number[]) =>
     .join("");
 
 // ハーフトーンのドット場を <circle>/<ellipse> で出力（イラレ編集可）。
-// 色は原典と同じくブラー円レイヤーからサンプリング（solid時は単色）。
-// glass/blur/背景ブロブ等の raster 効果は省略。
+// 色はブラー円レイヤーからサンプリング（solid時は単色）。blur/背景ブロブ等の
+// raster 効果は省略。
 function liquidGlassSvg(P: LiquidGlassParams, ph: number, cache: LayerCache): string {
   const W = 1280,
     H = 720,
@@ -574,7 +418,7 @@ function liquidGlassSvg(P: LiquidGlassParams, ph: number, cache: LayerCache): st
     const rx = cellPx * 0.5 * P.dotScale * (0.35 + 0.75 * Math.sqrt(dt.i));
     const ry = rx * P.dotAspect;
     if (rx < 0.25) continue;
-    if (P.hexMask && P.hexMode !== "none" && inHex(px, py, W / 2, H / 2, hr, rot, -rx)) continue;
+    if (P.hexMask && inHex(px, py, W / 2, H / 2, hr, rot, -rx)) continue;
     let col = base,
       sa = 1;
     if (d && P.dotSource === "blob") {
