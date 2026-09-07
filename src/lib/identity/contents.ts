@@ -12,9 +12,8 @@ export const GENERATE_CONTENTS: GenerateContentMeta[] = [
   {
     slug: "xyz-line",
     no: "02",
-    title: "XYZ / 3D",
-    blurb:
-      "面取り四角形を土台に、XYZライン / DATA CUBE / GRID CUBE をモード切替。四角形の中に3D。SVG／MP4／PNG。",
+    title: "XYZ LINE",
+    blurb: "面取り四角形が伸び縮みし、XYZ ラインが走る。ベクターSVG（図形単位）／MP4／PNG。",
   },
   {
     slug: "hex-liquid",

@@ -151,7 +151,7 @@ const XYZ_CONTROLS: ControlsSpec = [
 export const STRUCTURE_02: MultiModeContent = {
   slug: "xyz-line",
   no: "02",
-  title: "02 XYZ / 3D",
+  title: "02 XYZ LINE",
   bgKey: "bg",
   modes: [
     {

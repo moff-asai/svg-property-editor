@@ -26,7 +26,7 @@ export interface CanvasRenderer {
 
 // 1つのモード（= かつての単一 CanvasContent 相当）
 export interface CanvasMode {
-  value: string; // "hex-halo" | "xyz" | "data-cube" ...
+  value: string; // "xyz" | "hex-halo" | "liquid-glass" ...
   label: string;
   defaults: Params;
   presets: Params[];

@@ -457,9 +457,8 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
           </div>
 
           <p className="gen-note">
-            再生バーで位置を合わせて停止すると、その瞬間が SVG / PNG に書き出されます。SVG は
-            XYZ / HEX HALO / LIQUID GLASS が編集可能なベクター（各図形）、3Dモード（DATA CUBE /
-            GRID CUBE）は現在フレームを埋め込んだ静止画です。
+            再生バーで位置を合わせて停止すると、その瞬間が SVG / PNG に書き出されます。SVG
+            は全モードが編集可能なベクター（各図形）です。
           </p>
         </aside>
       </div>
