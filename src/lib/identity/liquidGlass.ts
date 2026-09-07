@@ -243,10 +243,9 @@ function drawC3(
   }
 }
 
-// 最新の LIQUID GLASS 保存設定を初期値として固定（ワードマークのサイズ/位置スライダーは
-// この既定値が中間になるよう可動域を設定）。
+// 最新の LIQUID GLASS 保存設定を初期値として固定。
 export const LIQUID_GLASS_DEFAULTS: LiquidGlassParams = {
-  zoom: 0.63,
+  zoom: 0.6,
   bg: "#000000",
   hexR: 0.18,
   hexRot: 0,
@@ -269,7 +268,7 @@ export const LIQUID_GLASS_DEFAULTS: LiquidGlassParams = {
   fieldScale: 1,
   dotAlpha: 0.65,
   dotSource: "solid",
-  dotColor: "#6a2bff", // 開いた時の既定色＝プリセット1（バイオレット）
+  dotColor: "#bbff00", // 最新saveの色（ライム）
   animA: 0,
   animB: 3,
   count: 1,
@@ -279,10 +278,10 @@ export const LIQUID_GLASS_DEFAULTS: LiquidGlassParams = {
   scale: 2,
   seed: 77,
   wordmark: 1,
-  wmSize: 1,
-  wmX: 0.7,
+  wmSize: 0.88,
+  wmX: 0.65,
   wmY: 0.5,
-  transparent: 1,
+  transparent: 0,
   circles: [
     { col: "#4b3bf5", x: -0.09, y: -0.05, r: 0.4, a: 0.9, ring: 0.52, wob: 1.0 },
     { col: "#db0000", x: 0.11, y: 0.07, r: 0.34, a: 0.8, ring: 0.6, wob: 1.4 },
