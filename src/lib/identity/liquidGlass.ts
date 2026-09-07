@@ -1,9 +1,5 @@
-// dynamic-identity-generator3.html コンテンツ 03「LIQUID GLASS / HALFTONE FIELD」
-// (drawC3 HTML:1644-1742 ほか) を移植。orbitype 方式のドット場＋中央の六角形の抜き穴。
-// raster（getImageDataで色サンプリング・ブラー）。
-// 注: HEX HALO と大きさ・位置を揃えるため既定を調整。中央形状のモード(soft/glass)・
-//     白ぬり・背景ハニカム・質感(グレイン/ビネット)は当アプリの方針で廃止し、
-//     モードは soft 相当（六角形の抜き穴）に固定。円ごとの設定(PER BLOB)は非対応。
+// LIQUID GLASS: ドット場のサイズと透明度で中央の六角形を表現する。
+// 各ドットは完全な円／楕円として描画し、切り抜きやマスク合成を使わない。
 import {
   TAU,
   RAD,
@@ -18,6 +14,8 @@ import {
   LayerCache,
 } from "./engine";
 import type { CanvasRenderer, ControlsSpec, Params } from "./types";
+import { hexagonDistance, hexDotWeight } from "./hexGeometry";
+import { drawMoodMetrix, moodMetrixSvg, LOGO_W, LOGO_H } from "./moodMetrixLogo";
 
 interface CircleDef {
   col: string;
@@ -62,6 +60,10 @@ export interface LiquidGlassParams {
   blur: number;
   scale: number;
   seed: number;
+  wordmark: number; // MOOD METRIX ワードマークの表示（1で表示）
+  wmSize: number; // ワードマークのサイズ（既定比の倍率）
+  wmX: number; // ワードマーク中心X（キャンバス幅比 0..1）
+  wmY: number; // ワードマーク中心Y（キャンバス高比 0..1）
   circles: CircleDef[];
   transparent?: number; // 背景透過（1でclear）
 }
@@ -110,16 +112,6 @@ function wobblyRing(
   x.fill();
 }
 
-function inHex(px: number, py: number, cx: number, cy: number, r: number, rot: number, pad: number) {
-  const inr = r * Math.cos(Math.PI / 6) - (pad || 0);
-  const dx = px - cx,
-    dy = py - cy;
-  for (let k = 0; k < 6; k++) {
-    const m = rot + (TAU * k) / 6 - Math.PI / 2 + Math.PI / 6;
-    if (dx * Math.cos(m) + dy * Math.sin(m) > inr) return false;
-  }
-  return true;
-}
 const spacingPx = (P: LiquidGlassParams, u: number) =>
   (2.06 / (Math.max(17, Math.round(P.density)) - 1)) * u;
 
@@ -206,6 +198,7 @@ function drawC3(
 
   const rot = P.hexRot * RAD + ph * TAU * P.hexSpin;
   const hr = P.hexR * H * P.zoom;
+  const hexDistance = hexagonDistance(hr, rot - Math.PI / 2);
 
   if (P.halftone) {
     const sw = Math.max(8, Math.round(W / 6)),
@@ -216,16 +209,18 @@ function drawC3(
     const field = dotField(P, ph);
     const u = Math.min(W, H) * 0.395 * P.zoom * P.fieldScale;
     const cellPx = spacingPx(P, u);
+    const rimWidth = Math.max(cellPx * 2.5, hr * 0.08);
     const base = rgbOf(P.dotColor);
     for (let i = 0; i < field.length; i++) {
       const dt = field[i];
       const px = W / 2 + dt.x * u,
         py = H / 2 + dt.y * u;
       if (px < -20 || px > W + 20 || py < -20 || py > H + 20) continue;
-      const rx = cellPx * 0.5 * P.dotScale * (0.35 + 0.75 * Math.sqrt(dt.i));
+      // 中央六角形は、穴に近いドットほど面積をなめらかに減衰（サイズ変化）させて表現。
+      const weight = P.hexMask ? hexDotWeight(hexDistance(px - W / 2, py - H / 2), rimWidth) : 1;
+      const rx = cellPx * 0.5 * P.dotScale * (0.35 + 0.75 * Math.sqrt(dt.i)) * Math.sqrt(weight);
       const ry = rx * P.dotAspect;
-      if (rx < 0.25) continue;
-      if (P.hexMask && inHex(px, py, W / 2, H / 2, hr, rot, -rx)) continue;
+      if (rx < 0.1 * S) continue;
       let col = base,
         sa = 1;
       if (P.dotSource === "blob") {
@@ -248,43 +243,45 @@ function drawC3(
   }
 }
 
-// defaults (D3 HTML:2039-2058)
-// 既定値は Downloads のスクリーンショット3枚（generator3 の LIQUID GLASS 設定）に準拠。
-// transparent は当アプリの方針として維持（bg は透過ONなら無視）。
+// 最新の LIQUID GLASS 保存設定を初期値として固定（ワードマークのサイズ/位置スライダーは
+// この既定値が中間になるよう可動域を設定）。
 export const LIQUID_GLASS_DEFAULTS: LiquidGlassParams = {
-  // zoom 1.36 / hexR 0.125 は HEX HALO とハローの外径・六角穴の径が揃うよう調整済み。
-  zoom: 1.36,
+  zoom: 0.63,
   bg: "#000000",
-  hexR: 0.125,
+  hexR: 0.18,
   hexRot: 0,
   hexSpin: 0,
   hexMask: 1,
   halftone: 1,
-  density: 49,
+  density: 75,
   ringR: 0.6,
-  thickness: 0.44,
-  fieldBlur: 0.105,
-  threshold: 0.54,
-  frequency: 9,
-  wave: 0,
-  turbulence: 0.76,
-  swirl: 0,
-  contrast: 1.26,
-  dotScale: 0.62,
-  dotAspect: 0.6,
-  fieldRot: 9,
+  thickness: 0.475,
+  fieldBlur: 0.205,
+  threshold: 0.25,
+  frequency: 7,
+  wave: 0.5,
+  turbulence: 0.3,
+  swirl: 3,
+  contrast: 1.4,
+  dotScale: 1,
+  dotAspect: 1,
+  fieldRot: 0,
   fieldScale: 1,
-  dotAlpha: 1,
-  dotSource: "blob",
-  dotColor: "#ffffff",
-  animA: 2,
+  dotAlpha: 0.65,
+  dotSource: "solid",
+  dotColor: "#6a2bff", // 開いた時の既定色＝プリセット1（バイオレット）
+  animA: 0,
   animB: 3,
-  count: 6,
+  count: 1,
   blend: "lighter",
-  wobble: 1,
-  blur: 80,
-  scale: 1,
+  wobble: 0.65,
+  blur: 0,
+  scale: 2,
   seed: 77,
+  wordmark: 1,
+  wmSize: 1,
+  wmX: 0.7,
+  wmY: 0.5,
   transparent: 1,
   circles: [
     { col: "#4b3bf5", x: -0.09, y: -0.05, r: 0.4, a: 0.9, ring: 0.52, wob: 1.0 },
@@ -296,12 +293,15 @@ export const LIQUID_GLASS_DEFAULTS: LiquidGlassParams = {
   ],
 };
 
-// presets（原典 PRESETS[3] を、モード=soft固定・ハニカム/ガラス廃止に合わせて再構成）
+// 6つのデフォルトカラーパターン。ドット(グラフィック)を単色化し、その色が
+// ワードマークのアクセント（「((」「))」）にも連動する（dotColor を共有）。
 export const LIQUID_GLASS_PRESETS: Partial<LiquidGlassParams>[] = [
-  { halftone: 1, dotSource: "blob", blend: "lighter", bg: "#000000", swirl: 1.15, turbulence: 0.55, scale: 1 },
-  { halftone: 1, dotSource: "solid", dotColor: "#ffffff", bg: "#000000", swirl: 1.9, turbulence: 1.1, density: 120, thickness: 0.2, ringR: 0.66 },
-  { halftone: 1, dotSource: "blob", blend: "lighter", bg: "#050508", swirl: 0.6, turbulence: 0.4, blur: 110, scale: 2, density: 60 },
-  { halftone: 1, dotSource: "blob", blend: "lighter", bg: "#000000", density: 140, ringR: 0.5, thickness: 0.5, swirl: 0.4, turbulence: 0.2, dotScale: 0.7 },
+  { dotSource: "solid", dotColor: "#6a2bff", bg: "#000000" }, // バイオレット
+  { dotSource: "solid", dotColor: "#ff2878", bg: "#000000" }, // ピンク（添付画像）
+  { dotSource: "solid", dotColor: "#ff4a17", bg: "#000000" }, // オレンジ
+  { dotSource: "solid", dotColor: "#bbff00", bg: "#000000" }, // ライム
+  { dotSource: "solid", dotColor: "#12e3c6", bg: "#000000" }, // ティール
+  { dotSource: "solid", dotColor: "#3c5aff", bg: "#000000" }, // ブルー（添付画像）
 ];
 
 // controls: HEX HALO と共通の並び（表示→中央の六角形→フォルム→色→モーション→背景）に
@@ -309,12 +309,21 @@ export const LIQUID_GLASS_PRESETS: Partial<LiquidGlassParams>[] = [
 export const LIQUID_GLASS_CONTROLS: ControlsSpec = [
   ["表示 / VIEW", [["zoom", "ズーム", "r", 0.3, 2.6, 0.01, "×"]]],
   [
+    "ロゴ / LOGO",
+    [
+      ["wordmark", "MOOD METRIX 表示", "c"],
+      ["wmSize", "ロゴサイズ", "r", 0.4, 1.6, 0.01, "×"],
+      ["wmX", "ロゴ位置 X（左右）", "r", 0.4, 1, 0.005, ""],
+      ["wmY", "ロゴ位置 Y（上下）", "r", 0, 1, 0.005, ""],
+    ],
+  ],
+  [
     "中央の六角形 / CENTER",
     [
-      ["hexR", "穴サイズ", "r", 0.05, 0.62, 0.005, ""],
+      ["hexR", "六角形サイズ", "r", 0.05, 0.62, 0.005, ""],
       ["hexRot", "回転", "r", 0, 360, 1, "°"],
       ["hexSpin", "1ループの回転数", "r", -2, 2, 1, "周"],
-      ["hexMask", "内側のドットを抜く", "c"],
+      ["hexMask", "六角形に沿ってドットを調整", "c"],
     ],
   ],
   [
@@ -374,13 +383,17 @@ const rgbHex = (c: number[]) =>
     .map((v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0"))
     .join("");
 
-// ハーフトーンのドット場を <circle>/<ellipse> で出力（イラレ編集可）。
+// ハーフトーンのドット場を <circle>/<ellipse> 群で出力（W×H 空間・中央寄せ）。
 // 色はブラー円レイヤーからサンプリング（solid時は単色）。blur/背景ブロブ等の
-// raster 効果は省略。
-function liquidGlassSvg(P: LiquidGlassParams, ph: number, cache: LayerCache): string {
-  const W = 1280,
-    H = 720,
-    S = W / 1280;
+// raster 効果は省略。ロックアップ合成のため W,H を引数化した。
+function liquidGlassShapes(
+  P: LiquidGlassParams,
+  ph: number,
+  cache: LayerCache,
+  W: number,
+  H: number,
+): string {
+  const S = W / 1280;
   const q = 0.5,
     fw = Math.max(2, Math.round(W * q)),
     fh = Math.max(2, Math.round(H * q));
@@ -409,16 +422,19 @@ function liquidGlassSvg(P: LiquidGlassParams, ph: number, cache: LayerCache): st
   const base = rgbOf(P.dotColor);
   const rot = P.hexRot * RAD + ph * TAU * P.hexSpin;
   const hr = P.hexR * H * P.zoom;
+  const hexDistance = hexagonDistance(hr, rot - Math.PI / 2);
+  const rimWidth = Math.max(cellPx * 2.5, hr * 0.08);
   const shapes: string[] = [];
   for (let i = 0; i < field.length; i++) {
     const dt = field[i];
     const px = W / 2 + dt.x * u,
       py = H / 2 + dt.y * u;
     if (px < -20 || px > W + 20 || py < -20 || py > H + 20) continue;
-    const rx = cellPx * 0.5 * P.dotScale * (0.35 + 0.75 * Math.sqrt(dt.i));
+    // 中央六角形は穴に近いドットほど面積をなめらかに減衰（サイズ変化）。
+    const weight = P.hexMask ? hexDotWeight(hexDistance(px - W / 2, py - H / 2), rimWidth) : 1;
+    const rx = cellPx * 0.5 * P.dotScale * (0.35 + 0.75 * Math.sqrt(dt.i)) * Math.sqrt(weight);
     const ry = rx * P.dotAspect;
-    if (rx < 0.25) continue;
-    if (P.hexMask && inHex(px, py, W / 2, H / 2, hr, rot, -rx)) continue;
+    if (rx < 0.1 * S) continue;
     let col = base,
       sa = 1;
     if (d && P.dotSource === "blob") {
@@ -441,23 +457,68 @@ function liquidGlassSvg(P: LiquidGlassParams, ph: number, cache: LayerCache): st
       );
     }
   }
-  const bgRect = P.transparent ? "" : `<rect width="${W}" height="${H}" fill="${P.bg}"/>`;
-  return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
-    bgRect +
-    shapes.join("") +
-    `</svg>`
-  );
+  return shapes.join("");
+}
+
+// 背景色の明度からワードマークのインク色（文字/®）を決める：暗い背景=白, 明るい背景=黒。
+const inkFor = (bg: string) => {
+  const c = rgbOf(bg);
+  return c[0] * 0.299 + c[1] * 0.587 + c[2] * 0.114 > 150 ? "#000000" : "#ffffff";
+};
+
+// ロックアップの配置（render / toSvg で共有）。グラフィックは常に D×D 正方形へ描画し
+// （マークの大きさ＝横幅は wordmark の ON/OFF で不変）、ON時は左に固定・OFF時は中央。
+// ワードマークは サイズ(wmSize=既定比の倍率) と 中心位置(wmX,wmY=キャンバス比) で調整可能。
+function lockupLayout(W: number, H: number, showWord: boolean, P: LiquidGlassParams) {
+  const D = H; // グラフィック正方形の一辺（mark は min(D,D) 基準＝ON/OFFで同一サイズ）
+  const gy = Math.round((H - D) / 2);
+  const gcx = showWord ? W * 0.2 : W / 2; // グラフィック中心X: ON=左寄せ / OFF=中央
+  const gx = Math.round(gcx - D / 2);
+  if (!showWord) return { D, gx, gy, wx: 0, wy: 0, wmScale: 0 };
+  const wmScale = ((H * 0.4) / LOGO_H) * (P.wmSize ?? 1);
+  const wmW = LOGO_W * wmScale,
+    wmH = LOGO_H * wmScale;
+  const cx = W * (P.wmX ?? 0.685),
+    cy = H * (P.wmY ?? 0.5);
+  return { D, gx, gy, wx: Math.round(cx - wmW / 2), wy: Math.round(cy - wmH / 2), wmScale };
 }
 
 export function createLiquidGlass(): CanvasRenderer {
   const cache = new LayerCache();
   return {
     render(ctx, W, H, phase, params: Params) {
-      drawC3(ctx, W, H, phase, params as unknown as LiquidGlassParams, cache);
+      const P = params as unknown as LiquidGlassParams;
+      const showWord = P.wordmark == null ? true : !!P.wordmark;
+      const L = lockupLayout(W, H, showWord, P);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.filter = "none";
+      ctx.globalCompositeOperation = "source-over";
+      fillBg(ctx, W, H, P.bg, !!P.transparent);
+      // グラフィックは透過の正方形オフスクリーンへ描き、合成する（背景は本体で一度だけ塗る）
+      const g = cache.get("lockupGfx", L.D, L.D);
+      drawC3(g.x, L.D, L.D, phase, { ...P, transparent: 1 }, cache);
+      ctx.drawImage(g.c, L.gx, L.gy);
+      // 文字/® は背景色に対して自動でコントラスト（暗い背景=白, 明るい背景=黒）。
+      if (showWord) drawMoodMetrix(ctx, L.wx, L.wy, L.wmScale, P.dotColor, inkFor(P.bg));
     },
     toSvg({ phase, params }) {
-      return liquidGlassSvg(params as unknown as LiquidGlassParams, phase, cache);
+      const P = params as unknown as LiquidGlassParams;
+      const W = 1280,
+        H = 720;
+      const showWord = P.wordmark == null ? true : !!P.wordmark;
+      const L = lockupLayout(W, H, showWord, P);
+      const shapes = liquidGlassShapes(P, phase, cache, L.D, L.D);
+      const bgRect = P.transparent ? "" : `<rect width="${W}" height="${H}" fill="${P.bg}"/>`;
+      const gfx = `<g transform="translate(${L.gx} ${L.gy})">${shapes}</g>`;
+      const wm = showWord ? moodMetrixSvg(L.wx, L.wy, L.wmScale, P.dotColor, inkFor(P.bg)) : "";
+      return (
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
+        bgRect +
+        gfx +
+        wm +
+        `</svg>`
+      );
     },
   };
 }

@@ -79,9 +79,9 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [playing, setPlaying] = useState(true);
-  const [loopSeconds, setLoopSeconds] = useState(6);
-  const [fps, setFps] = useState(30);
-  const [bitrateMbps, setBitrateMbps] = useState(16);
+  const [loopSeconds, setLoopSeconds] = useState(12);
+  const [fps, setFps] = useState(60);
+  const [bitrateMbps, setBitrateMbps] = useState(40);
   const [mp4Pct, setMp4Pct] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -444,15 +444,28 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
               <span>{active.presets.length}</span>
             </div>
             <div className="gen-preset-grid">
-              {active.presets.map((preset, i) => (
-                <button
-                  key={i}
-                  className="gen-preset"
-                  onClick={() => applyPatch({ ...preset })}
-                >
-                  {"0" + (i + 1)}
-                </button>
-              ))}
+              {active.presets.map((preset, i) => {
+                // カラーパターン等 dotColor を持つプリセットは色スウォッチで表示。
+                const swatch =
+                  typeof (preset as Record<string, unknown>).dotColor === "string"
+                    ? ((preset as Record<string, unknown>).dotColor as string)
+                    : null;
+                return (
+                  <button
+                    key={i}
+                    className="gen-preset"
+                    onClick={() => applyPatch({ ...preset })}
+                    title={swatch ?? undefined}
+                    style={
+                      swatch
+                        ? { background: swatch, borderColor: "transparent", color: "rgba(0,0,0,.5)" }
+                        : undefined
+                    }
+                  >
+                    {"0" + (i + 1)}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
