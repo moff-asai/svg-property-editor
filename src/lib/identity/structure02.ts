@@ -126,7 +126,6 @@ function createXyzMode(mesh = false): CanvasRenderer {
 
 const XYZ_DEFAULTS: Params = {
   ...XYZ_FRAME_DEFAULTS,
-  frameAnimation: 0,
   frameWidth: 90,
   frameHeight: 65,
   typoVisible: 1,
