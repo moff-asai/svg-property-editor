@@ -102,15 +102,24 @@ type Point = readonly [number, number];
 
 export function meshPoints(p: MeshGradientParams, phase: number): Point[] {
   const angle = (((phase % 1) + 1) % 1) * Math.PI * 2;
-  // Independent, gently elliptical orbits move toward/away from one another.
-  // Keep each point in its own quadrant, even at the maximum inset/motion.
-  const ax = Math.min(p.meshMotion, 0.46 - p.meshInsetX);
-  const ay = Math.min(p.meshMotion, 0.46 - p.meshInsetY);
+  // At the default amount, each point travels through all four quadrants.
+  // Counter-rotating paths and independent breathing let colors pass and mix
+  // instead of preserving their corner order as a rigid rotating rectangle.
+  // Blend from the static corners so motion=0 still holds the original field.
+  const travel = Math.min(1, p.meshMotion / MESH_DEFAULTS.meshMotion);
+  const breathing = 0.18 + 0.16 * p.meshMotion / 0.35;
   return [0, 1, 2, 3].map((i): Point => {
-    const t = angle + [0, 1.7, 4.1, 2.8][i];
-    const dx = p.meshInsetX + ax * (0.5 + 0.5 * Math.sin(t));
-    const dy = p.meshInsetY + ay * (0.5 + 0.5 * Math.cos(t + i * 0.4));
-    return [i % 2 === 0 ? dx : 1 - dx, i < 2 ? dy : 1 - dy];
+    const sx = i % 2 === 0 ? -1 : 1;
+    const sy = i < 2 ? -1 : 1;
+    const offset = i * 1.7;
+    const direction = i === 0 || i === 3 ? 1 : -1;
+    const t = Math.atan2(sy, sx) + direction * angle
+      + 0.24 * Math.sin(angle + offset);
+    const radius = 1 - breathing * (0.5 + 0.5 * Math.sin(angle + offset));
+    return [
+      0.5 + (0.5 - p.meshInsetX) * (sx * (1 - travel) + travel * radius * Math.cos(t)),
+      0.5 + (0.5 - p.meshInsetY) * (sy * (1 - travel) + travel * radius * Math.sin(t)),
+    ];
   });
 }
 

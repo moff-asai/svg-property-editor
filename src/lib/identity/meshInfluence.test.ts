@@ -66,3 +66,36 @@ test("the color loop is seamless and motion zero holds the field still", () => {
   assert.notDeepEqual(color(0), color(0.5));
   assert.deepEqual(color(0, 0), color(0.5, 0));
 });
+
+test("each moving point visits every quadrant and changes order with its neighbors", () => {
+  const quadrants = Array.from({ length: 4 }, () => new Set<string>());
+  const horizontalOrder = new Set<boolean>();
+  for (let frame = 0; frame < 120; frame++) {
+    const points = meshPoints(MESH_DEFAULTS, frame / 120);
+    points.forEach(([x, y], i) => quadrants[i].add(`${x < 0.5},${y < 0.5}`));
+    horizontalOrder.add(points[0][0] < points[1][0]);
+  }
+  quadrants.forEach(visited => assert.equal(visited.size, 4));
+  assert.equal(horizontalOrder.size, 2);
+});
+
+test("mixing paths stay inside the inset and join with continuous velocity", () => {
+  for (const meshMotion of [0, 0.01, 0.2, 0.35]) {
+    for (const [meshInsetX, meshInsetY] of [[0, 0.4], [0.4, 0], [0.08, 0.08]]) {
+      const p = { ...MESH_DEFAULTS, meshMotion, meshInsetX, meshInsetY };
+      for (let frame = 0; frame <= 120; frame++) {
+        for (const [x, y] of meshPoints(p, frame / 120)) {
+          assert(x >= meshInsetX - 1e-12 && x <= 1 - meshInsetX + 1e-12);
+          assert(y >= meshInsetY - 1e-12 && y <= 1 - meshInsetY + 1e-12);
+        }
+      }
+      const h = 1e-5;
+      const before = meshPoints(p, 1 - h), start = meshPoints(p, 0), after = meshPoints(p, h);
+      assert.deepEqual(start, meshPoints(p, 1));
+      start.forEach((point, i) => point.forEach((value, axis) => {
+        const velocityJump = Math.abs((after[i][axis] - value) / h - (value - before[i][axis]) / h);
+        assert(velocityJump < 0.001);
+      }));
+    }
+  }
+});
