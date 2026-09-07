@@ -458,7 +458,7 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
 
           <p className="gen-note">
             再生バーで位置を合わせて停止すると、その瞬間が SVG / PNG に書き出されます。SVG
-            は全モードが編集可能なベクター（各図形）です。
+            は図形を編集できます。メッシュは4色のグラデーションとマスクで再現しています。
           </p>
         </aside>
       </div>

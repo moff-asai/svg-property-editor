@@ -13,7 +13,7 @@ export const GENERATE_CONTENTS: GenerateContentMeta[] = [
     slug: "xyz-line",
     no: "02",
     title: "XYZ LINE",
-    blurb: "面取り四角形が伸び縮みし、XYZ ラインが走る。ベクターSVG（図形単位）／MP4／PNG。",
+    blurb: "面取り四角形とXYZライン。4点の色を編集できるメッシュグラデーションにも対応。SVG／MP4／PNG。",
   },
   {
     slug: "hex-liquid",

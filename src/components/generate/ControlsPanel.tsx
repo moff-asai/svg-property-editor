@@ -49,6 +49,7 @@ export default function ControlsPanel({
                   </output>
                   <input
                     type="range"
+                    aria-label={label}
                     min={min}
                     max={max}
                     step={step}
@@ -69,6 +70,7 @@ export default function ControlsPanel({
                     <i style={{ background: color }} />
                     <input
                       type="color"
+                      aria-label={label}
                       value={color}
                       onChange={(e) => onChange({ [key]: e.target.value })}
                     />

@@ -5,6 +5,8 @@
 // getComputedStyle(transform) で正しく焼き込め、SVG書き出しでも単体でアニメする。
 // 純粋関数（DOM 非依存）。
 
+import { meshSvg, type MeshGradientParams } from "./meshGradient";
+
 export const XYZ_PALS = ["purple", "teal", "grad", "ink"] as const;
 export type XyzPal = (typeof XYZ_PALS)[number];
 
@@ -29,6 +31,7 @@ export interface XyzLineParams {
   animated?: boolean; // false で phase の静止フレームを出力（アニメ無し）
   w?: number; // viewBox 幅（未指定時は size）。canvas と同じ比で書き出すため
   h?: number; // viewBox 高（未指定時は size）
+  mesh?: MeshGradientParams; // 四隅の色を補間するメッシュ塗り
 }
 
 export const XYZ_DEFAULTS: XyzLineParams = {
@@ -128,13 +131,14 @@ function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
     : "";
   const bgRect =
     p.bg && !p.transparent ? `<rect width="${W}" height="${H}" fill="${p.bg}"/>` : "";
+  const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh) : undefined;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     bgRect +
-    `<defs><clipPath id="xyz-clip"><polygon points="${points}"/></clipPath>${gradDef}</defs>` +
-    `<polygon data-eid="xyz-fill" points="${points}" fill="${fillAttr}"/>` +
+    `<defs><clipPath id="xyz-clip"><polygon points="${points}"/></clipPath>${mesh?.defs ?? gradDef}</defs>` +
+    (mesh?.body ?? `<polygon data-eid="xyz-fill" points="${points}" fill="${fillAttr}"/>`) +
     `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
-    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${pal.line}" ` +
+    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}" ` +
     `stroke-width="${f(lineW)}" stroke-linejoin="round" stroke-linecap="butt"/>` +
     `</g></svg>`
   );
@@ -205,16 +209,17 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
 
   const bgRect =
     p.bg && !p.transparent ? `<rect width="${W}" height="${H}" fill="${p.bg}"/>` : "";
+  const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh) : undefined;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     bgRect +
     `<style>${style}</style>` +
-    `<defs><clipPath id="xyz-clip"><polygon points="${points}"/></clipPath>${gradDef}</defs>` +
+    `<defs><clipPath id="xyz-clip"><polygon points="${points}"/></clipPath>${mesh?.defs ?? gradDef}</defs>` +
     `<g data-eid="xyz-box" class="xyz-anim">` +
-    `<polygon data-eid="xyz-fill" points="${points}" fill="${fillAttr}"/>` +
+    (mesh?.body ?? `<polygon data-eid="xyz-fill" points="${points}" fill="${fillAttr}"/>`) +
     `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
     // vector-effect: 箱の scale アニメで線幅が変わらない（非等方scaleでの太さ歪みを防ぐ）
-    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${pal.line}" ` +
+    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}" ` +
     `stroke-width="${f(lineW)}" vector-effect="non-scaling-stroke" ` +
     `stroke-linejoin="round" stroke-linecap="butt"/>` +
     `</g></g></svg>`

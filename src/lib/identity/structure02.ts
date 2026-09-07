@@ -2,6 +2,7 @@
 //  - xyz: generator3 draw2 の canvas 版（箱が幅/高さ変形＋XYZ線）
 import { poly, fillBg } from "./engine";
 import { XYZ_PAL, renderXyzLineSvg, type XyzPal } from "./xyzLine";
+import { createMeshPainter, meshParams, MESH_CONTROLS, MESH_DEFAULTS } from "./meshGradient";
 import type { CanvasRenderer, ControlsSpec, MultiModeContent, Params } from "./types";
 
 /* ---------- アニメ・エンベロープ (generator3 HTML:689-703) ---------- */
@@ -42,8 +43,10 @@ interface XyzModeParams {
   lw: number;
   transparent?: number; // 背景透過
 }
-function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number, params: Params) {
+function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number, params: Params,
+  paintMesh?: ReturnType<typeof createMeshPainter>) {
   const P = params as unknown as XyzModeParams;
+  const mesh = paintMesh ? meshParams(params) : undefined;
   const hGrow = seqHold(ph, 0.06, 0.34, 0.72, 0.94, 4.2);
   const wGrow = seqHold(ph, 0.42, 0.7, 0.72, 0.94, 4.2);
   const wv = lerp(0.22, 0.64, wGrow),
@@ -63,19 +66,23 @@ function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number
   const pal = XYZ_PAL[P.pal];
   ctx.save();
   poly(ctx, pts);
-  if (pal.fill.length === 2) {
+  if (mesh && paintMesh) {
+    ctx.clip();
+    paintMesh(ctx, x0, y0, bw, bh, mesh);
+  } else if (pal.fill.length === 2) {
     const g = ctx.createLinearGradient(x0, y0, x0 + bw, y0);
     g.addColorStop(0, pal.fill[0]);
     g.addColorStop(1, pal.fill[1]);
     ctx.fillStyle = g;
   } else ctx.fillStyle = pal.fill[0];
-  ctx.fill();
+  if (!mesh) ctx.fill();
   ctx.clip();
   const dmax = Math.min(bw, bh) - c2 * 1.4,
     d = c2 * 0.75 + P.pos * dmax,
     jx = x0 + bw - d,
     jy = y0 + bh - d;
-  ctx.strokeStyle = pal.line;
+  ctx.strokeStyle = mesh?.meshLine ?? pal.line;
+  ctx.globalAlpha = mesh?.meshLineOpacity ?? 1;
   ctx.lineWidth = Math.max(1.2, m * 0.012 * P.lw);
   ctx.lineJoin = "round";
   ctx.lineCap = "butt";
@@ -90,9 +97,10 @@ function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number
   ctx.stroke();
   ctx.restore();
 }
-function createXyzMode(): CanvasRenderer {
+function createXyzMode(mesh = false): CanvasRenderer {
+  const paintMesh = mesh ? createMeshPainter() : undefined;
   return {
-    render: drawXyz,
+    render: (ctx, W, H, phase, params) => drawXyz(ctx, W, H, phase, params, paintMesh),
     // XYZ は「停止位置」の静止フレームをベクターSVG（イラレ編集可）で出力
     toSvg: ({ phase, loopSeconds, params }) => {
       const p = params as unknown as XyzModeParams;
@@ -110,6 +118,7 @@ function createXyzMode(): CanvasRenderer {
         transparent: p.transparent,
         phase,
         animated: false,
+        mesh: mesh ? meshParams(params) : undefined,
       });
     },
   };
@@ -161,6 +170,23 @@ export const STRUCTURE_02: MultiModeContent = {
       presets: XYZ_PRESETS,
       controls: XYZ_CONTROLS,
       create: createXyzMode,
+    },
+    {
+      value: "xyz-mesh",
+      label: "メッシュグラデーション",
+      defaults: { ...XYZ_DEFAULTS, ...MESH_DEFAULTS },
+      presets: [
+        { ...MESH_DEFAULTS },
+        { ...MESH_DEFAULTS, meshTopLeft: "#f7f6ff", meshTopRight: "#eeedff", meshBottomLeft: "#edfdf7", meshBottomRight: "#daeafa", meshLineOpacity: 0.6 },
+        { ...MESH_DEFAULTS, meshTopLeft: "#ff728f", meshTopRight: "#ffd8a8", meshBottomLeft: "#b59aff", meshBottomRight: "#703be8" },
+        { ...MESH_DEFAULTS, meshTopLeft: "#113d72", meshTopRight: "#378ab2", meshBottomLeft: "#64d9da", meshBottomRight: "#10233d" },
+      ],
+      controls: [
+        ...MESH_CONTROLS,
+        ["背景 / BACKGROUND", [["transparent", "背景透過", "c"], ["bg", "背景色", "k"]]],
+        XYZ_CONTROLS[1],
+      ],
+      create: () => createXyzMode(true),
     },
   ],
 };
