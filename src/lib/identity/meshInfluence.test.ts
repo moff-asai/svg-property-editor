@@ -99,3 +99,18 @@ test("mixing paths stay inside the inset and join with continuous velocity", () 
     }
   }
 });
+
+test("default drift keeps color centers distinct and limits movement between video frames", () => {
+  // Six-second loop at 30 fps, including the wrap back to its first frame.
+  for (let frame = 0; frame < 180; frame++) {
+    const points = meshPoints(MESH_DEFAULTS, frame / 180);
+    const next = meshPoints(MESH_DEFAULTS, (frame + 1) / 180);
+    points.forEach(([x, y], i) => {
+      assert(Math.hypot(next[i][0] - x, next[i][1] - y) < 0.014);
+      for (let j = i + 1; j < points.length; j++) {
+        assert(Math.hypot(points[j][0] - x, points[j][1] - y) > 0.25,
+          `color centers merge at frame ${frame}`);
+      }
+    });
+  }
+});
