@@ -13,6 +13,11 @@ import { typoSvg } from "./xyzTypo";
 export const XYZ_PALS = ["purple", "teal", "grad", "ink"] as const;
 export type XyzPal = (typeof XYZ_PALS)[number];
 
+export const XYZ_CHAMFER_MIN = 0.05;
+export const XYZ_CHAMFER_MAX = 0.4;
+export const XYZ_LINE_WIDTH_MIN = 0.3;
+export const XYZ_LINE_WIDTH_MAX = 5;
+
 // PAL2 (generator3 HTML:777-782)
 export const XYZ_PAL: Record<XyzPal, { fill: string[]; line: string }> = {
   purple: { fill: ["#662DF5"], line: "#874FF6" },
@@ -23,10 +28,10 @@ export const XYZ_PAL: Record<XyzPal, { fill: string[]; line: string }> = {
 
 export interface XyzLineParams extends XyzFrameParams {
   pal: XyzPal;
-  ch: number; // 面取り .05–.25
+  ch: number; // 面取り .05–.4
   round?: number; // 右上・左下の角丸 0–.25
   pos: number; // 交点位置 0–1
-  lw: number; // 線の太さ .3–2.5
+  lw: number; // 線の太さ .3–5
   loopDur: number; // ループ長(秒)
   size: number; // 正方 viewBox 一辺
   bg?: string; // 背景色（transparent 未指定時に背景 rect を出力）
@@ -63,9 +68,9 @@ export const XYZ_CONTROLS: {
   max: number;
   step: number;
 }[] = [
-  { key: "ch", label: "面取り", min: 0.05, max: 0.25, step: 0.005 },
+  { key: "ch", label: "面取り", min: XYZ_CHAMFER_MIN, max: XYZ_CHAMFER_MAX, step: 0.005 },
   { key: "pos", label: "交点位置", min: 0, max: 1, step: 0.01 },
-  { key: "lw", label: "線の太さ", min: 0.3, max: 2.5, step: 0.05 },
+  { key: "lw", label: "線の太さ", min: XYZ_LINE_WIDTH_MIN, max: XYZ_LINE_WIDTH_MAX, step: 0.05 },
   { key: "loopDur", label: "ループ長(秒)", min: 2, max: 10, step: 0.5 },
 ];
 

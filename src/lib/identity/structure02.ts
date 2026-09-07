@@ -1,7 +1,15 @@
 // 02 を「構造テンプレート」化: 面取り四角形を土台に、モードで中身を切替。
 //  - xyz: generator3 draw2 の canvas 版（箱が幅/高さ変形＋XYZ線）
 import { fillBg } from "./engine";
-import { XYZ_PAL, renderXyzLineSvg, type XyzPal } from "./xyzLine";
+import {
+  XYZ_CHAMFER_MAX,
+  XYZ_CHAMFER_MIN,
+  XYZ_LINE_WIDTH_MAX,
+  XYZ_LINE_WIDTH_MIN,
+  XYZ_PAL,
+  renderXyzLineSvg,
+  type XyzPal,
+} from "./xyzLine";
 import { createMeshPainter, meshParams, MESH_CONTROLS, MESH_DEFAULTS } from "./meshGradient";
 import { xyzFrameSize, XYZ_FRAME_DEFAULTS, type XyzFrameParams } from "./xyzFrame";
 import { traceXyzShape, xyzRoundRatio, XYZ_ROUND_DEFAULT } from "./xyzShape";
@@ -136,10 +144,10 @@ const XYZ_CONTROLS: ControlsSpec = [
   [
     "調整 / TUNE",
     [
-      ["ch", "面取り", "r", 0.05, 0.25, 0.005, ""],
+      ["ch", "面取り", "r", XYZ_CHAMFER_MIN, XYZ_CHAMFER_MAX, 0.005, ""],
       ["round", "右上・左下の角丸", "r", 0, 0.25, 0.005, ""],
       ["pos", "交点位置", "r", 0, 1, 0.01, ""],
-      ["lw", "線の太さ", "r", 0.3, 2.5, 0.05, ""],
+      ["lw", "線の太さ", "r", XYZ_LINE_WIDTH_MIN, XYZ_LINE_WIDTH_MAX, 0.05, ""],
     ],
   ],
 ];
