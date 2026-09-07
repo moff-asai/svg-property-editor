@@ -131,7 +131,7 @@ function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
     : "";
   const bgRect =
     p.bg && !p.transparent ? `<rect width="${W}" height="${H}" fill="${p.bg}"/>` : "";
-  const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh, c) : undefined;
+  const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh, c, ph) : undefined;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     bgRect +
@@ -209,7 +209,7 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
 
   const bgRect =
     p.bg && !p.transparent ? `<rect width="${W}" height="${H}" fill="${p.bg}"/>` : "";
-  const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh, c) : undefined;
+  const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh, c, 0, p.loopDur) : undefined;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     bgRect +
