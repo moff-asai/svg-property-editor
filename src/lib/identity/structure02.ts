@@ -5,6 +5,7 @@ import { XYZ_PAL, renderXyzLineSvg, type XyzPal } from "./xyzLine";
 import { createMeshPainter, meshParams, MESH_CONTROLS, MESH_DEFAULTS } from "./meshGradient";
 import { xyzFrameSize, XYZ_FRAME_DEFAULTS, type XyzFrameParams } from "./xyzFrame";
 import { traceXyzShape, xyzRoundRatio, XYZ_ROUND_DEFAULT } from "./xyzShape";
+import { drawTypo } from "./xyzTypo";
 import type { CanvasRenderer, ControlsSpec, MultiModeContent, Params } from "./types";
 
 /* ---------- XYZ モード（draw2 canvas 版） ---------- */
@@ -65,6 +66,7 @@ function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number
   ctx.lineTo(jx - k, jy + k);
   ctx.stroke();
   ctx.restore();
+  if (P.typoVisible !== 0) drawTypo(ctx, x0, y0, bw, bh, radius);
 }
 function createXyzMode(mesh = false): CanvasRenderer {
   const paintMesh = mesh ? createMeshPainter() : undefined;
@@ -91,6 +93,7 @@ function createXyzMode(mesh = false): CanvasRenderer {
         frameAnimation: p.frameAnimation,
         frameWidth: p.frameWidth,
         frameHeight: p.frameHeight,
+        typoVisible: p.typoVisible,
         mesh: mesh ? meshParams(params) : undefined,
       });
     },
@@ -115,6 +118,7 @@ const XYZ_PRESETS: Params[] = [
 ];
 const FRAME_CONTROLS: ControlsSpec = [
   ["枠 / FRAME", [["frameAnimation", "枠のサイズアニメーション", "c"]]],
+  ["タイポ / TYPOGRAPHY", [["typoVisible", "タイポを表示", "c"]]],
   ["固定サイズ / SIZE", [
     ["frameWidth", "幅", "r", 10, 90, 1, "%"],
     ["frameHeight", "高さ", "r", 10, 90, 1, "%"],

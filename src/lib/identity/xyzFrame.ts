@@ -2,12 +2,14 @@ export interface XyzFrameParams {
   frameAnimation?: 0 | 1;
   frameWidth?: number;
   frameHeight?: number;
+  typoVisible?: number;
 }
 
 export const XYZ_FRAME_DEFAULTS = {
   frameAnimation: 1,
   frameWidth: 64,
   frameHeight: 64,
+  typoVisible: 1,
 } as const;
 
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t));
