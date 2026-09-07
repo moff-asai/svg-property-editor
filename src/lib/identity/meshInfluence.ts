@@ -1,7 +1,7 @@
 import { rgbOf } from "./engine";
 import type { MeshGradientParams } from "./meshGradient";
 
-type Axis = readonly (readonly [number, number])[];
+type Point = readonly [number, number];
 export const INFLUENCE_GRID = 64;
 
 export function influenceRanges(p: MeshGradientParams) {
@@ -9,34 +9,28 @@ export function influenceRanges(p: MeshGradientParams) {
     p.meshBottomLeftRange ?? 100, p.meshBottomRightRange ?? 100];
 }
 
-// Preserve the original moving gradient field at 100%. Raising each corner's
-// weight to an independent power expands/contracts its level sets. Normalize
-// afterwards to keep the field opaque and avoid additive whitening or stacking order.
-export function influenceSampler(p: MeshGradientParams, axes: readonly Axis[], w: number, h: number) {
+// Smooth radial weights with infinite tails: no projected axes, clamped stops
+// or cutoff radius that could form a moving crease. Normalization avoids both
+// additive whitening and gaps when all four influence ranges are small.
+export function influenceSampler(p: MeshGradientParams, points: readonly Point[]) {
   const colors = [p.meshTopLeft, p.meshTopRight, p.meshBottomLeft, p.meshBottomRight].map(rgbOf);
-  const powers = influenceRanges(p).map(r => 100 / r);
-  // Regularize the zero-weight boundary so expanding a color does not create
-  // an infinitely steep edge as its moving gradient axis crosses the field.
-  const epsilon = 0.002;
-  const offsets = powers.map(power => epsilon ** power);
-  const projections = axes.map(([a, b]) => {
-    const dx = (b[0] - a[0]) * w, dy = (b[1] - a[1]) * h;
-    const d = dx * dx + dy * dy;
-    return (x: number, y: number) => Math.max(0, Math.min(1,
-      ((x - a[0]) * w * dx + (y - a[1]) * h * dy) / d));
-  });
+  // Work in frame-relative coordinates so resizing the frame stretches the
+  // same field rather than changing how strongly its four colors contribute.
+  const radiiSquared = influenceRanges(p).map(range => (0.33 * range / 100) ** 2);
   return (x: number, y: number) => {
-    const top = projections[0](x, y), bottom = projections[1](x, y), v = projections[2](x, y);
-    const weights = [(1 - v) * (1 - top), (1 - v) * top, v * (1 - bottom), v * bottom]
-      .map((weight, i) => (weight + epsilon) ** powers[i] - offsets[i]);
+    const weights = points.map(([px, py], i) => {
+      const dx = x - px, dy = y - py;
+      const falloff = radiiSquared[i] / (radiiSquared[i] + dx * dx + dy * dy);
+      return falloff * falloff;
+    });
     const total = weights.reduce((sum, weight) => sum + weight, 0);
-    return [0, 1, 2].map(channel => Math.round(weights.reduce(
-      (sum, weight, i) => sum + weight * colors[i][channel], 0) / total));
+    return [0, 1, 2].map(channel => weights.reduce(
+      (sum, weight, i) => sum + weight * colors[i][channel], 0) / total);
   };
 }
 
-export function influencePixels(p: MeshGradientParams, axes: readonly Axis[], w: number, h: number) {
-  const sample = influenceSampler(p, axes, w, h);
+export function influencePixels(p: MeshGradientParams, points: readonly Point[]) {
+  const sample = influenceSampler(p, points);
   const size = INFLUENCE_GRID + 1;
   const data = new Uint8ClampedArray(size * size * 4);
   for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
@@ -51,15 +45,15 @@ export function influencePixels(p: MeshGradientParams, axes: readonly Axis[], w:
 // A continuous grid of SVG gradients, not an embedded bitmap. Adjacent strips
 // share their edge colors; vertical masks interpolate between the sampled rows.
 export function influenceSvg(
-  p: MeshGradientParams, axesAt: (phase: number) => readonly Axis[],
+  p: MeshGradientParams, pointsAt: (phase: number) => readonly Point[],
   x: number, y: number, w: number, h: number, phase: number, seconds?: number,
 ) {
   const animated = !!seconds && p.meshMotion > 0;
   const grid = animated ? 32 : INFLUENCE_GRID;
   const frames = animated ? 24 : 0;
   const samples = Array.from({ length: frames + 1 }, (_, i) =>
-    influenceSampler(p, axesAt(phase + (frames ? i / frames : 0)), w, h));
-  const hex = (rgb: number[]) => `#${rgb.map(c => c.toString(16).padStart(2, "0")).join("")}`;
+    influenceSampler(p, pointsAt(phase + (frames ? i / frames : 0))));
+  const hex = (rgb: number[]) => `#${rgb.map(c => Math.round(c).toString(16).padStart(2, "0")).join("")}`;
   let defs = "", body = "";
   for (let row = 0; row <= grid; row++) {
     let stops = "";

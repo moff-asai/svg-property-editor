@@ -2,7 +2,7 @@ import type { ControlsSpec, Params } from "./types";
 import { blurCanvas, hasFilter, poly } from "./engine";
 import { influenceRanges, influencePixels, influenceSvg, INFLUENCE_GRID } from "./meshInfluence";
 
-// Four drifting color points. Canvas and SVG share the same gradient axes and
+// Four drifting color points. Canvas and SVG share the same radial color field and
 // periodic paths so seeking, video and still exports agree. No bitmap needed.
 export interface MeshGradientParams {
   meshTopLeft: string;
@@ -114,14 +114,6 @@ export function meshPoints(p: MeshGradientParams, phase: number): Point[] {
   });
 }
 
-function meshAxes(p: MeshGradientParams, phase: number): Point[][] {
-  const [tl, tr, bl, br] = meshPoints(p, phase);
-  return [[tl, tr], [bl, br], [
-    [(tl[0] + tr[0]) / 2, (tl[1] + tr[1]) / 2],
-    [(bl[0] + br[0]) / 2, (bl[1] + br[1]) / 2],
-  ]];
-}
-
 // Offset every edge by the same distance, including the two 45° chamfers.
 // Once an inset passes the chamfer, the inner contour becomes rectangular.
 function insetContour(w: number, h: number, chamfer: number, padding: number) {
@@ -145,11 +137,11 @@ export function createMeshPainter() {
     const th = Math.max(1, Math.round(h * scale));
     const min = Math.min(tw, th);
     const cut = min * chamfer / Math.min(w, h);
-    const axes = meshAxes(p, phase);
+    const points = meshPoints(p, phase);
     const ranges = influenceRanges(p);
     const maskKey = [p.meshPadding, p.meshBlur, tw, th, cut.toFixed(5)].join("|");
     const key = [p.meshTopLeft, p.meshTopRight, p.meshBottomLeft, p.meshBottomRight,
-      p.meshBase, maskKey, ...ranges, ...axes.flat(2)].join("|");
+      p.meshBase, maskKey, ...ranges, ...points.flat()].join("|");
     if (!tile || key !== lastKey) {
       // Bound the cached texture size for video, rebuilding only when the field
       // or its contour changes. Padding/blur use the short side, not each axis.
@@ -157,32 +149,14 @@ export function createMeshPainter() {
       tile.width = tw;
       tile.height = th;
       const c = tile.getContext("2d")!;
-      const gradient = (axis: Point[], left: string, right: string) => {
-        const [a, b] = axis;
-        const g = c.createLinearGradient(tw * a[0], th * a[1], tw * b[0], th * b[1]);
-        g.addColorStop(0, left);
-        g.addColorStop(1, right);
-        return g;
-      };
-      c.fillStyle = gradient(axes[1], p.meshBottomLeft, p.meshBottomRight);
-      c.fillRect(0, 0, tw, th);
-      c.globalCompositeOperation = "destination-in";
-      c.fillStyle = gradient(axes[2], "rgba(255,255,255,0)", "rgba(255,255,255,1)");
-      c.fillRect(0, 0, tw, th);
-      c.globalCompositeOperation = "destination-over";
-      c.fillStyle = gradient(axes[0], p.meshTopLeft, p.meshTopRight);
-      c.fillRect(0, 0, tw, th);
-
-      if (ranges.some(r => r !== 100)) {
-        field ??= document.createElement("canvas");
-        field.width = field.height = INFLUENCE_GRID + 1;
-        field.getContext("2d")!.putImageData(new ImageData(
-          influencePixels(p, axes, tw, th), INFLUENCE_GRID + 1, INFLUENCE_GRID + 1), 0, 0);
-        c.globalCompositeOperation = "copy";
-        // Align pixel centers with the SVG grid vertices (including both edges).
-        c.drawImage(field, -tw / (2 * INFLUENCE_GRID), -th / (2 * INFLUENCE_GRID),
-          tw * (1 + 1 / INFLUENCE_GRID), th * (1 + 1 / INFLUENCE_GRID));
-      }
+      field ??= document.createElement("canvas");
+      field.width = field.height = INFLUENCE_GRID + 1;
+      field.getContext("2d")!.putImageData(new ImageData(
+        influencePixels(p, points), INFLUENCE_GRID + 1, INFLUENCE_GRID + 1), 0, 0);
+      // All influence settings (including 100%) use the same smooth field.
+      // Align pixel centers with the SVG grid vertices, including both edges.
+      c.drawImage(field, -tw / (2 * INFLUENCE_GRID), -th / (2 * INFLUENCE_GRID),
+        tw * (1 + 1 / INFLUENCE_GRID), th * (1 + 1 / INFLUENCE_GRID));
 
       // Color motion does not invalidate the more expensive blurred contour.
       if (!mask || maskKey !== lastMaskKey) {
@@ -215,26 +189,9 @@ export function meshSvg(p: MeshGradientParams, x: number, y: number, w: number, 
   const min = Math.min(w, h);
   const contour = insetContour(w, h, chamfer, min * p.meshPadding)
     .map(([px, py]) => `${x + px},${y + py}`).join(" ");
-  const coords = (axis: Point[]) => [x + axis[0][0] * w, y + axis[0][1] * h, x + axis[1][0] * w, y + axis[1][1] * h];
-  const axes = meshAxes(p, phase);
-  const field = influenceRanges(p).some(r => r !== 100)
-    ? influenceSvg(p, ph => meshAxes(p, ph), x, y, w, h, phase, animatedSeconds) : undefined;
-  const samples = animatedSeconds && p.meshMotion > 0
-    ? Array.from({ length: 49 }, (_, i) => meshAxes(p, phase + i / 48).map(coords)) : [];
-  const gradient = (id: string, index: number, stops: string) => {
-    const names = ["x1", "y1", "x2", "y2"];
-    const attributes = coords(axes[index]).map((v, i) => `${names[i]}="${v}"`).join(" ");
-    const animation = samples.length ? names.map((name, i) =>
-      `<animate attributeName="${name}" dur="${animatedSeconds}s" repeatCount="indefinite" values="${samples.map(s => s[index][i].toFixed(4)).join(";")}"/>`).join("") : "";
-    return `<linearGradient id="${id}" gradientUnits="userSpaceOnUse" ${attributes} color-interpolation="sRGB">${stops}${animation}</linearGradient>`;
-  };
-  const stops = (left: string, right: string) => `<stop stop-color="${left}"/><stop offset="1" stop-color="${right}"/>`;
+  const field = influenceSvg(p, ph => meshPoints(p, ph), x, y, w, h, phase, animatedSeconds);
   return {
-    defs: (field?.defs ?? "") + gradient("xyz-mesh-top", 0, stops(p.meshTopLeft, p.meshTopRight)) +
-      gradient("xyz-mesh-bottom", 1, stops(p.meshBottomLeft, p.meshBottomRight)) +
-      gradient("xyz-mesh-fade", 2, `<stop stop-color="white" stop-opacity="0"/><stop offset="1" stop-color="white"/>`) +
-      `<mask id="xyz-mesh-mask" maskUnits="userSpaceOnUse" x="${x}" y="${y}" width="${w}" height="${h}" style="mask-type:alpha">` +
-      `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#xyz-mesh-fade)"/></mask>` +
+    defs: field.defs +
       `<filter id="xyz-mesh-blur" filterUnits="userSpaceOnUse" x="${x}" y="${y}" width="${w}" height="${h}" color-interpolation-filters="sRGB">` +
       `<feGaussianBlur stdDeviation="${min * p.meshBlur}"/></filter>` +
       `<mask id="xyz-mesh-edge" maskUnits="userSpaceOnUse" x="${x}" y="${y}" width="${w}" height="${h}" style="mask-type:alpha">` +
@@ -242,7 +199,6 @@ export function meshSvg(p: MeshGradientParams, x: number, y: number, w: number, 
     body: `<g data-eid="xyz-mesh" clip-path="url(#xyz-clip)">` +
       `<rect data-eid="xyz-mesh-base" x="${x}" y="${y}" width="${w}" height="${h}" fill="${p.meshBase}"/>` +
       `<g mask="url(#xyz-mesh-edge)">` +
-      (field?.body ?? (`<rect data-eid="xyz-mesh-top" x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#xyz-mesh-top)"/>` +
-      `<rect data-eid="xyz-mesh-bottom" x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#xyz-mesh-bottom)" mask="url(#xyz-mesh-mask)"/>`)) + `</g></g>`,
+      field.body + `</g></g>`,
   };
 }
