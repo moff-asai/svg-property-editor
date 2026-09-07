@@ -80,7 +80,9 @@ function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number
   ctx.moveTo(jx, jy);
   ctx.lineTo(x0 + bw + 2, jy);
   ctx.moveTo(jx, jy);
-  const k = Math.min(jx - x0, y0 + bh - jy) + 4;
+  // 斜めライン(Z)は butt キャップの切り口が縁と平行にならないため、少し外へ出す
+  // 程度では端の角度が見えてしまう。縁より十分外まで伸ばしクリップで終端させる。
+  const k = Math.min(jx - x0, y0 + bh - jy) + Math.max(bw, bh);
   ctx.lineTo(jx - k, jy + k);
   ctx.stroke();
   ctx.restore();

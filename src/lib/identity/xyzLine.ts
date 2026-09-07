@@ -135,7 +135,9 @@ function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
   const d = c * 0.75 + p.pos * dmax;
   const jx = x0 + bw - d;
   const jy = y0 + bh - d;
-  const k = Math.min(jx - x0, y0 + bh - jy) + 4;
+  // 斜めライン(Z)は縁より十分外まで伸ばし、切り口ではなくクリップで終端させる
+  // （少し外へ出す程度だと butt キャップの角度が見えてしまう）。
+  const k = Math.min(jx - x0, y0 + bh - jy) + Math.max(bw, bh);
   const rayD =
     `M ${f(jx)} ${f(jy)} L ${f(jx)} ${f(y0 - 2)} ` +
     `M ${f(jx)} ${f(jy)} L ${f(x0 + bw + 2)} ${f(jy)} ` +
