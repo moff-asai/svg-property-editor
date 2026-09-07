@@ -298,7 +298,7 @@ export const LIQUID_GLASS_PRESETS: Partial<LiquidGlassParams>[] = [
   { dotSource: "solid", dotColor: "#6a2bff", bg: "#000000" }, // バイオレット
   { dotSource: "solid", dotColor: "#ff2878", bg: "#000000" }, // ピンク（添付画像）
   { dotSource: "solid", dotColor: "#ff4a17", bg: "#000000" }, // オレンジ
-  { dotSource: "solid", dotColor: "#bbff00", bg: "#000000" }, // ライム
+  { dotSource: "solid", dotColor: "#aadc00", bg: "#000000" }, // ライム
   { dotSource: "solid", dotColor: "#12e3c6", bg: "#000000" }, // ティール
   { dotSource: "solid", dotColor: "#3c5aff", bg: "#000000" }, // ブルー（添付画像）
 ];
