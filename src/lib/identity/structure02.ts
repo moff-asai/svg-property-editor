@@ -132,6 +132,31 @@ const XYZ_PRESETS: Params[] = [
   { pal: "teal", ch: 0.12, pos: 0.12 },
   { pal: "ink", ch: 0.18, pos: 0.22 },
 ];
+const XYZ_MESH_DEFAULTS: Params = {
+  ...XYZ_DEFAULTS,
+  ...MESH_DEFAULTS,
+  frameAnimation: 0,
+  frameWidth: 55,
+  frameHeight: 40,
+  typoVisible: 1,
+  meshInsetX: 0.03,
+  meshInsetY: 0.1,
+  meshTopLeftRange: 129,
+  meshTopRightRange: 105,
+  meshBottomLeftRange: 182,
+  meshBottomRightRange: 97,
+  meshMotion: 0.1,
+  meshMotionPattern: "orbit",
+  meshPadding: 0.02,
+  meshBlur: 0.05,
+  meshLineOpacity: 0.5,
+  transparent: 1,
+  ch: 0.33,
+  round: 0,
+  pos: 0.45,
+  lw: 4.7,
+  lineBlendMode: "soft-light",
+};
 const FRAME_CONTROLS: ControlsSpec = [
   ["枠 / FRAME", [["frameAnimation", "枠のサイズアニメーション", "c"]]],
   ["タイポ / TYPOGRAPHY", [
@@ -181,7 +206,7 @@ export const STRUCTURE_02: MultiModeContent = {
     {
       value: "xyz-mesh",
       label: "メッシュグラデーション",
-      defaults: { ...XYZ_DEFAULTS, ...MESH_DEFAULTS },
+      defaults: XYZ_MESH_DEFAULTS,
       presets: [
         { ...MESH_DEFAULTS },
         { ...MESH_DEFAULTS, meshTopLeft: "#f7f6ff", meshTopRight: "#eeedff", meshBottomLeft: "#edfdf7", meshBottomRight: "#daeafa", meshLineOpacity: 0.6 },
