@@ -6,7 +6,7 @@
 // 純粋関数（DOM 非依存）。
 
 import { meshSvg, type MeshGradientParams } from "./meshGradient";
-import { xyzFrameSize, XYZ_FRAME_DEFAULTS, type XyzFrameParams } from "./xyzFrame";
+import { xyzFrameRatio, xyzFrameSize, XYZ_FRAME_DEFAULTS, type XyzFrameParams } from "./xyzFrame";
 import { xyzRoundRatio, xyzShapePath, XYZ_ROUND_DEFAULT } from "./xyzShape";
 import { typoSvg } from "./xyzTypo";
 
@@ -112,9 +112,8 @@ export const XYZ_CONTROLS: {
   { key: "loopDur", label: "ループ長(秒)", min: 2, max: 10, step: 0.5 },
 ];
 
-// アニメの最大サイズ（w/h ともに 0.64 まで成長）。この基準で描画し scale で縮める。
-const WMAX = 0.64;
-const HMAX = 0.64;
+// アニメの最大サイズ＝固定サイズ比率（frameWidth/frameHeight）。この基準で描画し
+// scale で縮める（xyzFrameRatio が canvas と共通のピークを返す）。
 const KF_STOPS = 26;
 
 const f = (n: number) => n.toFixed(2);
@@ -207,12 +206,13 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
   // 幅/高さ変形を中心拡縮の CSS scale キーフレームで再現（seqHold をサンプリング）
   const cx = W / 2;
   const cy = H / 2;
+  const { width: wMax, height: hMax } = xyzFrameRatio(p);
   let frames = "";
   for (let i = 0; p.frameAnimation !== 0 && i < KF_STOPS; i++) {
     const ph = i / (KF_STOPS - 1);
     const { width: wv, height: hv } = xyzFrameSize(1, 1, ph, p);
-    const sx = (wv / WMAX).toFixed(4);
-    const sy = (hv / HMAX).toFixed(4);
+    const sx = (wv / wMax).toFixed(4);
+    const sy = (hv / hMax).toFixed(4);
     const pct = ((ph * 100).toFixed(2) + "%").replace(".00%", "%");
     frames += `${pct}{transform:translate(${f(cx)}px,${f(cy)}px) scale(${sx},${sy}) translate(${f(-cx)}px,${f(-cy)}px)}`;
   }

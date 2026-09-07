@@ -35,13 +35,25 @@ function fixedRatio(value: number | undefined) {
     ? Math.max(10, Math.min(90, value)) : 64) / 100;
 }
 
+// Where the grow/shrink loop begins and ends. The peak is the configured
+// size ratio, so the animation swells up to it instead of past it.
+const ANIM_START_W = 0.22;
+const ANIM_START_H = 0.21;
+
+// The configured size ratio: the still frame size, and the animation peak.
+export function xyzFrameRatio(p: XyzFrameParams) {
+  return { width: fixedRatio(p.frameWidth), height: fixedRatio(p.frameHeight) };
+}
+
 // One size calculation for Canvas, still SVG and animated SVG. The phase
 // remains independent so disabling frame motion never stops the color points.
 export function xyzFrameSize(W: number, H: number, phase: number, p: XyzFrameParams) {
-  if (p.frameAnimation === 0) {
-    return { width: W * fixedRatio(p.frameWidth), height: H * fixedRatio(p.frameHeight) };
-  }
+  const { width: wMax, height: hMax } = xyzFrameRatio(p);
+  if (p.frameAnimation === 0) return { width: W * wMax, height: H * hMax };
   const hg = seqHold(phase, 0.06, 0.34, 0.72, 0.94);
   const wg = seqHold(phase, 0.42, 0.7, 0.72, 0.94);
-  return { width: W * (0.22 + (0.64 - 0.22) * wg), height: H * (0.21 + (0.64 - 0.21) * hg) };
+  // A peak below the start ratio would invert the loop, so clamp the start.
+  const w0 = Math.min(ANIM_START_W, wMax);
+  const h0 = Math.min(ANIM_START_H, hMax);
+  return { width: W * (w0 + (wMax - w0) * wg), height: H * (h0 + (hMax - h0) * hg) };
 }

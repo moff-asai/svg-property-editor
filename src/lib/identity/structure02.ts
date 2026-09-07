@@ -168,10 +168,11 @@ const FRAME_CONTROLS: ControlsSpec = [
     ["typoVisible", "タイポを表示", "c"],
     ["typoColor", "タイポの色", "k"],
   ]],
-  ["固定サイズ / SIZE", [
+  // アニメON時は「拡大ピーク」（この比率まで大きくなって戻る）、OFF時は固定サイズ。
+  ["サイズ / SIZE", [
     ["frameWidth", "幅", "r", 10, 90, 1, "%"],
     ["frameHeight", "高さ", "r", 10, 90, 1, "%"],
-  ], { key: "frameAnimation", equals: 0 }],
+  ]],
 ];
 const TUNE_CONTROLS: ControlGroup = [
   "調整 / TUNE",
