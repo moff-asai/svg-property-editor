@@ -1,28 +1,8 @@
 // 02 を「構造テンプレート」化: 面取り四角形を土台に、モードで中身を切替。
 //  - xyz: generator3 draw2 の canvas 版（箱が幅/高さ変形＋XYZ線）
-//  - data-cube / grid-cube: 面取り四角形を静止フレームとして、内側に既存の
-//    DATA CUBE / GRID CUBE レンダラをクリップ描画（見た目は元コンテンツと一致）
 import { poly, fillBg } from "./engine";
 import { XYZ_PAL, renderXyzLineSvg, type XyzPal } from "./xyzLine";
-import {
-  createDataCube,
-  DATA_CUBE_DEFAULTS,
-  DATA_CUBE_PRESETS,
-  DATA_CUBE_CONTROLS,
-} from "./dataCube";
-import {
-  createGridCube,
-  GRID_CUBE_DEFAULTS,
-  GRID_CUBE_PRESETS,
-  GRID_CUBE_CONTROLS,
-} from "./gridCube";
-import type {
-  CanvasRenderer,
-  ControlGroup,
-  ControlsSpec,
-  MultiModeContent,
-  Params,
-} from "./types";
+import type { CanvasRenderer, ControlsSpec, MultiModeContent, Params } from "./types";
 
 /* ---------- アニメ・エンベロープ (generator3 HTML:689-703) ---------- */
 const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t);
@@ -168,65 +148,6 @@ const XYZ_CONTROLS: ControlsSpec = [
   ],
 ];
 
-/* ---------- 3D モード（面取り四角形フレーム＋内側にクリップ描画） ---------- */
-interface FrameParams {
-  frameSize: number;
-  ch: number;
-  frameColor: string;
-  frameW: number;
-  frameBg: string;
-  transparent?: number; // 背景透過（外側・内側とも clear）
-}
-const FRAME_DEFAULTS = {
-  frameSize: 0.72,
-  ch: 0.13,
-  frameColor: "#ffffff",
-  frameW: 2,
-  frameBg: "#000000",
-  transparent: 1,
-};
-const FRAME_GROUP: ControlGroup = [
-  "フレーム / FRAME",
-  [
-    ["frameSize", "四角形サイズ", "r", 0.4, 0.95, 0.01, ""],
-    ["ch", "面取り", "r", 0, 0.25, 0.005, ""],
-    ["frameColor", "枠線の色", "k"],
-    ["frameW", "枠線の太さ", "r", 0, 6, 0.5, "px"],
-    ["transparent", "背景透過", "c"],
-    ["frameBg", "外側背景", "k"],
-  ],
-];
-
-function framedRenderer(inner: CanvasRenderer): CanvasRenderer {
-  return {
-    render(ctx, W, H, ph, params) {
-      const P = params as unknown as FrameParams;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.globalAlpha = 1;
-      ctx.filter = "none";
-      ctx.globalCompositeOperation = "source-over";
-      fillBg(ctx, W, H, P.frameBg, !!P.transparent);
-      const s = P.frameSize * Math.min(W, H);
-      const x0 = W / 2 - s / 2,
-        y0 = H / 2 - s / 2,
-        c2 = s * P.ch;
-      const pts = chamfer(x0, y0, s, s, c2);
-      ctx.save();
-      poly(ctx, pts);
-      ctx.clip();
-      inner.render(ctx, W, H, ph, params); // 内側3D（自前の bg を四角形内に敷いて描画）
-      ctx.restore();
-      if (P.frameW > 0) {
-        ctx.strokeStyle = P.frameColor;
-        ctx.lineWidth = Math.max(0.5, P.frameW * (W / 1280));
-        ctx.lineJoin = "round";
-        poly(ctx, pts);
-        ctx.stroke();
-      }
-    },
-  };
-}
-
 export const STRUCTURE_02: MultiModeContent = {
   slug: "xyz-line",
   no: "02",
@@ -240,22 +161,6 @@ export const STRUCTURE_02: MultiModeContent = {
       presets: XYZ_PRESETS,
       controls: XYZ_CONTROLS,
       create: createXyzMode,
-    },
-    {
-      value: "data-cube",
-      label: "DATA CUBE",
-      defaults: { ...(DATA_CUBE_DEFAULTS as unknown as Params), ...FRAME_DEFAULTS },
-      presets: DATA_CUBE_PRESETS as unknown as Params[],
-      controls: [FRAME_GROUP, ...DATA_CUBE_CONTROLS],
-      create: () => framedRenderer(createDataCube()),
-    },
-    {
-      value: "grid-cube",
-      label: "GRID CUBE",
-      defaults: { ...(GRID_CUBE_DEFAULTS as unknown as Params), ...FRAME_DEFAULTS },
-      presets: GRID_CUBE_PRESETS as unknown as Params[],
-      controls: [FRAME_GROUP, ...GRID_CUBE_CONTROLS],
-      create: () => framedRenderer(createGridCube()),
     },
   ],
 };
