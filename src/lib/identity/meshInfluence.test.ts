@@ -1,7 +1,8 @@
 import { strict as assert } from "node:assert";
 import { test } from "node:test";
 import { influenceSampler } from "./meshInfluence";
-import { MESH_DEFAULTS, meshPoints } from "./meshGradient";
+import { MESH_DEFAULTS, MESH_MOTION_PATTERNS, meshParams, meshPoints } from "./meshGradient";
+import { STRUCTURE_02 } from "./structure02";
 
 const colors = ["meshTopLeft", "meshTopRight", "meshBottomLeft", "meshBottomRight"] as const;
 const ranges = ["meshTopLeftRange", "meshTopRightRange", "meshBottomLeftRange", "meshBottomRightRange"] as const;
@@ -113,4 +114,44 @@ test("default drift keeps color centers distinct and limits movement between vid
       }
     });
   }
+});
+
+test("all motion presets loop smoothly, remain bounded and stop at zero amount", () => {
+  const trajectories = new Set<string>();
+  for (const [meshMotionPattern] of MESH_MOTION_PATTERNS) {
+    const p = { ...MESH_DEFAULTS, meshMotionPattern };
+    trajectories.add(JSON.stringify([0, 0.25, 0.5, 0.75].map(phase => meshPoints(p, phase))));
+    for (const meshMotion of [0, 0.01, 0.2, 0.35]) {
+      const params = { ...p, meshMotion };
+      assert.deepEqual(meshPoints(params, 0), meshPoints(params, 1));
+      const h = 1e-5;
+      const before = meshPoints(params, 1 - h), start = meshPoints(params, 0), after = meshPoints(params, h);
+      start.forEach((point, i) => point.forEach((v, axis) => {
+        assert(Math.abs((after[i][axis] - v) / h - (v - before[i][axis]) / h) < 0.001);
+      }));
+      for (let frame = 0; frame < 180; frame++) {
+        const points = meshPoints(params, frame / 180), next = meshPoints(params, (frame + 1) / 180);
+        points.forEach(([x, y], i) => {
+          assert(x >= p.meshInsetX && x <= 1 - p.meshInsetX);
+          assert(y >= p.meshInsetY && y <= 1 - p.meshInsetY);
+          assert(Math.hypot(x - next[i][0], y - next[i][1]) < 0.014);
+        });
+      }
+    }
+    assert.deepEqual(meshPoints({ ...p, meshMotion: 0 }, 0), meshPoints({ ...p, meshMotion: 0 }, 0.5));
+  }
+  assert.equal(trajectories.size, MESH_MOTION_PATTERNS.length);
+});
+
+test("motion choice survives persistence and color presets, with legacy fallback", () => {
+  const mode = STRUCTURE_02.modes.find(mode => mode.value === "xyz-mesh")!;
+  for (const [meshMotionPattern] of MESH_MOTION_PATTERNS) {
+    const saved = JSON.parse(JSON.stringify({ ...mode.defaults, meshMotionPattern }));
+    assert.equal(meshParams(saved).meshMotionPattern, meshMotionPattern);
+    for (const preset of mode.presets) {
+      assert.equal(meshParams({ ...saved, ...preset }).meshMotionPattern, meshMotionPattern);
+    }
+  }
+  assert.equal(meshParams({}).meshMotionPattern, "orbit");
+  assert.equal(meshParams({ meshMotionPattern: "unknown" }).meshMotionPattern, "orbit");
 });

@@ -163,7 +163,9 @@ export const STRUCTURE_02: MultiModeContent = {
         { ...MESH_DEFAULTS, meshTopLeft: "#f7f6ff", meshTopRight: "#eeedff", meshBottomLeft: "#edfdf7", meshBottomRight: "#daeafa", meshLineOpacity: 0.6 },
         { ...MESH_DEFAULTS, meshTopLeft: "#ff728f", meshTopRight: "#ffd8a8", meshBottomLeft: "#b59aff", meshBottomRight: "#703be8" },
         { ...MESH_DEFAULTS, meshTopLeft: "#113d72", meshTopRight: "#378ab2", meshBottomLeft: "#64d9da", meshBottomRight: "#10233d" },
-      ],
+      ].map(preset => Object.fromEntries(
+        Object.entries(preset).filter(([key]) => key !== "meshMotionPattern"),
+      )),
       controls: [
         ...FRAME_CONTROLS,
         ...MESH_CONTROLS,

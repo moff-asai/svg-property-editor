@@ -3,6 +3,14 @@ import { blurCanvas, hasFilter } from "./engine";
 import { influenceRanges, influencePixels, influenceSvg, INFLUENCE_GRID } from "./meshInfluence";
 import { insetXyzShape, traceXyzShape, xyzShapePath } from "./xyzShape";
 
+export const MESH_MOTION_PATTERNS = [
+  ["orbit", "ゆるやかな回転"],
+  ["drift", "ゆらゆら漂う"],
+  ["wave", "波のうねり"],
+  ["breathe", "集まる・広がる"],
+] as const;
+type MeshMotionPattern = typeof MESH_MOTION_PATTERNS[number][0];
+
 // Four drifting color points. Canvas and SVG share the same radial color field and
 // periodic paths so seeking, video and still exports agree. No bitmap needed.
 export interface MeshGradientParams {
@@ -18,6 +26,7 @@ export interface MeshGradientParams {
   meshBlur: number;
   meshBase: string;
   meshMotion: number;
+  meshMotionPattern: MeshMotionPattern;
   meshTopLeftRange: number;
   meshTopRightRange: number;
   meshBottomLeftRange: number;
@@ -37,6 +46,7 @@ export const MESH_DEFAULTS: MeshGradientParams = {
   meshBlur: 0.045,
   meshBase: "#eaeff4",
   meshMotion: 0.2,
+  meshMotionPattern: "orbit",
   meshTopLeftRange: 100,
   meshTopRightRange: 100,
   meshBottomLeftRange: 100,
@@ -59,6 +69,7 @@ export const MESH_CONTROLS: ControlsSpec = [
     ["meshBottomRightRange", "右下の影響範囲", "r", 20, 200, 1, "%"],
   ]],
   ["動き / MOTION", [
+    ["meshMotionPattern", "動きのプリセット", "o", MESH_MOTION_PATTERNS],
     ["meshMotion", "ポイントの移動量", "r", 0, 0.35, 0.01, ""],
   ]],
   ["外周 / EDGE", [
@@ -92,6 +103,7 @@ export function meshParams(params: Params): MeshGradientParams {
     meshPadding: number("meshPadding", 0.22), meshBlur: number("meshBlur", 0.15),
     meshBase: color("meshBase"),
     meshMotion: number("meshMotion", 0.35),
+    meshMotionPattern: MESH_MOTION_PATTERNS.find(([key]) => key === params.meshMotionPattern)?.[0] ?? "orbit",
     meshTopLeftRange: number("meshTopLeftRange", 200, 20),
     meshTopRightRange: number("meshTopRightRange", 200, 20),
     meshBottomLeftRange: number("meshBottomLeftRange", 200, 20),
@@ -116,9 +128,28 @@ export function meshPoints(p: MeshGradientParams, phase: number): Point[] {
     const t = Math.atan2(sy, sx) + angle + 0.1 * Math.sin(angle + offset);
     const rx = 0.7 + breathing * Math.sin(angle + offset);
     const ry = 0.7 + breathing * Math.cos(angle + offset);
+    let px = rx * Math.cos(t), py = ry * Math.sin(t);
+    // Non-rotating paths use smooth periodic waves without changing point IDs.
+    // Their amplitudes leave room at the edges and between neighboring centers.
+    switch (p.meshMotionPattern) {
+      case "drift":
+        px = sx * 0.42 + 0.34 * Math.sin(angle);
+        py = sy * 0.5 + 0.16 * Math.sin(angle + i * 0.55);
+        break;
+      case "wave":
+        px = sx * 0.48 + 0.16 * Math.sin(angle + sy * 0.7);
+        py = sy * 0.42 + 0.32 * Math.sin(angle + sx * 1.1);
+        break;
+      case "breathe": {
+        const spread = 0.5 + 0.22 * Math.sin(angle);
+        px = sx * spread + 0.07 * Math.sin(angle + offset);
+        py = sy * spread + 0.07 * Math.cos(angle + offset);
+        break;
+      }
+    }
     return [
-      0.5 + (0.5 - p.meshInsetX) * (sx * (1 - travel) + travel * rx * Math.cos(t)),
-      0.5 + (0.5 - p.meshInsetY) * (sy * (1 - travel) + travel * ry * Math.sin(t)),
+      0.5 + (0.5 - p.meshInsetX) * (sx * (1 - travel) + travel * px),
+      0.5 + (0.5 - p.meshInsetY) * (sy * (1 - travel) + travel * py),
     ];
   });
 }
