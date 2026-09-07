@@ -9,7 +9,11 @@ export type Control =
   | readonly [key: string, label: string, t: "s", options: readonly string[]]
   | readonly [key: string, label: string, t: "o", options: readonly (readonly [string, string])[]];
 
-export type ControlGroup = readonly [title: string, controls: readonly Control[]];
+export type ControlGroup = readonly [
+  title: string,
+  controls: readonly Control[],
+  visibleWhen?: { readonly key: string; readonly equals: number | string },
+];
 export type ControlsSpec = readonly ControlGroup[];
 
 // number/string に加え、LIQUID GLASS の circles[] など配列値も保持できるようにする

@@ -6,6 +6,7 @@
 // 純粋関数（DOM 非依存）。
 
 import { meshSvg, type MeshGradientParams } from "./meshGradient";
+import { xyzFrameSize, XYZ_FRAME_DEFAULTS, type XyzFrameParams } from "./xyzFrame";
 
 export const XYZ_PALS = ["purple", "teal", "grad", "ink"] as const;
 export type XyzPal = (typeof XYZ_PALS)[number];
@@ -18,7 +19,7 @@ export const XYZ_PAL: Record<XyzPal, { fill: string[]; line: string }> = {
   ink: { fill: ["#101012"], line: "#4A4A4E" },
 };
 
-export interface XyzLineParams {
+export interface XyzLineParams extends XyzFrameParams {
   pal: XyzPal;
   ch: number; // 面取り .05–.25
   pos: number; // 交点位置 0–1
@@ -35,6 +36,7 @@ export interface XyzLineParams {
 }
 
 export const XYZ_DEFAULTS: XyzLineParams = {
+  ...XYZ_FRAME_DEFAULTS,
   pal: "purple",
   ch: 0.13,
   pos: 0.18,
@@ -63,29 +65,9 @@ export const XYZ_CONTROLS: {
   { key: "loopDur", label: "ループ長(秒)", min: 2, max: 10, step: 0.5 },
 ];
 
-// generator3 のアニメ・エンベロープ（HTML:689-703）
-const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t);
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-function easeSharp(t: number, k = 3) {
-  t = clamp01(t);
-  k = Math.max(0.6, k || 1);
-  const a = Math.pow(t, k),
-    b = Math.pow(1 - t, k);
-  return a / (a + b || 1);
-}
-function seqHold(ph: number, a: number, b: number, c: number, d: number, k = 3) {
-  ph = ((ph % 1) + 1) % 1;
-  if (ph < a || ph > d) return 0;
-  if (ph < b) return easeSharp((ph - a) / (b - a), k);
-  if (ph < c) return 1;
-  return 1 - easeSharp((ph - c) / (d - c), k);
-}
-
 // アニメの最大サイズ（w/h ともに 0.64 まで成長）。この基準で描画し scale で縮める。
 const WMAX = 0.64;
 const HMAX = 0.64;
-const EASE_H = 4.2;
-const EASE_W = 4.2;
 const KF_STOPS = 26;
 
 const f = (n: number) => n.toFixed(2);
@@ -95,10 +77,7 @@ const f = (n: number) => n.toFixed(2);
 // （キーフレーム/スケール無し＝そのまま止まった見た目のイラレ編集可ベクター）。
 function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
   const ph = (((p.phase ?? 0) % 1) + 1) % 1;
-  const hGrow = seqHold(ph, 0.06, 0.34, 0.72, 0.94, EASE_H);
-  const wGrow = seqHold(ph, 0.42, 0.7, 0.72, 0.94, EASE_W);
-  const bw = W * lerp(0.22, WMAX, wGrow);
-  const bh = H * lerp(0.21, HMAX, hGrow);
+  const { width: bw, height: bh } = xyzFrameSize(W, H, ph, p);
   const m = Math.min(bw, bh);
   const c = m * p.ch;
   const x0 = W / 2 - bw / 2;
@@ -149,8 +128,7 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
   const H = p.h ?? p.size;
   if (p.animated === false) return renderXyzStatic(p, W, H);
   // 基準（最大）ジオメトリ。draw2 の式（generator3 HTML:790-818）を最大サイズで評価。
-  const bw = W * WMAX;
-  const bh = H * HMAX;
+  const { width: bw, height: bh } = xyzFrameSize(W, H, 0.7, p);
   const m = Math.min(bw, bh);
   const c = m * p.ch;
   const x0 = W / 2 - bw / 2;
@@ -192,12 +170,9 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
   const cx = W / 2;
   const cy = H / 2;
   let frames = "";
-  for (let i = 0; i < KF_STOPS; i++) {
+  for (let i = 0; p.frameAnimation !== 0 && i < KF_STOPS; i++) {
     const ph = i / (KF_STOPS - 1);
-    const hGrow = seqHold(ph, 0.06, 0.34, 0.72, 0.94, EASE_H);
-    const wGrow = seqHold(ph, 0.42, 0.7, 0.72, 0.94, EASE_W);
-    const wv = lerp(0.22, WMAX, wGrow);
-    const hv = lerp(0.21, HMAX, hGrow);
+    const { width: wv, height: hv } = xyzFrameSize(1, 1, ph, p);
     const sx = (wv / WMAX).toFixed(4);
     const sy = (hv / HMAX).toFixed(4);
     const pct = ((ph * 100).toFixed(2) + "%").replace(".00%", "%");
@@ -213,9 +188,9 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     bgRect +
-    `<style>${style}</style>` +
+    (p.frameAnimation === 0 ? "" : `<style>${style}</style>`) +
     `<defs><clipPath id="xyz-clip"><polygon points="${points}"/></clipPath>${mesh?.defs ?? gradDef}</defs>` +
-    `<g data-eid="xyz-box" class="xyz-anim">` +
+    `<g data-eid="xyz-box"${p.frameAnimation === 0 ? "" : ' class="xyz-anim"'}>` +
     (mesh?.body ?? `<polygon data-eid="xyz-fill" points="${points}" fill="${fillAttr}"/>`) +
     `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
     // vector-effect: 箱の scale アニメで線幅が変わらない（非等方scaleでの太さ歪みを防ぐ）

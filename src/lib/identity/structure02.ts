@@ -3,25 +3,8 @@
 import { poly, fillBg } from "./engine";
 import { XYZ_PAL, renderXyzLineSvg, type XyzPal } from "./xyzLine";
 import { createMeshPainter, meshParams, MESH_CONTROLS, MESH_DEFAULTS } from "./meshGradient";
+import { xyzFrameSize, XYZ_FRAME_DEFAULTS, type XyzFrameParams } from "./xyzFrame";
 import type { CanvasRenderer, ControlsSpec, MultiModeContent, Params } from "./types";
-
-/* ---------- アニメ・エンベロープ (generator3 HTML:689-703) ---------- */
-const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t);
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-function easeSharp(t: number, k = 3) {
-  t = clamp01(t);
-  k = Math.max(0.6, k || 1);
-  const a = Math.pow(t, k),
-    b = Math.pow(1 - t, k);
-  return a / (a + b || 1);
-}
-function seqHold(ph: number, a: number, b: number, c: number, d: number, k = 3) {
-  ph = ((ph % 1) + 1) % 1;
-  if (ph < a || ph > d) return 0;
-  if (ph < b) return easeSharp((ph - a) / (b - a), k);
-  if (ph < c) return 1;
-  return 1 - easeSharp((ph - c) / (d - c), k);
-}
 
 function chamfer(x0: number, y0: number, bw: number, bh: number, c2: number): number[][] {
   return [
@@ -35,7 +18,7 @@ function chamfer(x0: number, y0: number, bw: number, bh: number, c2: number): nu
 }
 
 /* ---------- XYZ モード（draw2 canvas 版） ---------- */
-interface XyzModeParams {
+interface XyzModeParams extends XyzFrameParams {
   bg: string;
   pal: XyzPal;
   ch: number;
@@ -47,13 +30,8 @@ function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number
   paintMesh?: ReturnType<typeof createMeshPainter>) {
   const P = params as unknown as XyzModeParams;
   const mesh = paintMesh ? meshParams(params) : undefined;
-  const hGrow = seqHold(ph, 0.06, 0.34, 0.72, 0.94, 4.2);
-  const wGrow = seqHold(ph, 0.42, 0.7, 0.72, 0.94, 4.2);
-  const wv = lerp(0.22, 0.64, wGrow),
-    hv = lerp(0.21, 0.64, hGrow);
-  const bw = W * wv,
-    bh = H * hv,
-    m = Math.min(bw, bh),
+  const { width: bw, height: bh } = xyzFrameSize(W, H, ph, P);
+  const m = Math.min(bw, bh),
     c2 = m * P.ch,
     x0 = W / 2 - bw / 2,
     y0 = H / 2 - bh / 2;
@@ -118,6 +96,9 @@ function createXyzMode(mesh = false): CanvasRenderer {
         transparent: p.transparent,
         phase,
         animated: false,
+        frameAnimation: p.frameAnimation,
+        frameWidth: p.frameWidth,
+        frameHeight: p.frameHeight,
         mesh: mesh ? meshParams(params) : undefined,
       });
     },
@@ -125,6 +106,7 @@ function createXyzMode(mesh = false): CanvasRenderer {
 }
 
 const XYZ_DEFAULTS: Params = {
+  ...XYZ_FRAME_DEFAULTS,
   bg: "#ffffff",
   pal: "purple",
   ch: 0.13,
@@ -137,6 +119,13 @@ const XYZ_PRESETS: Params[] = [
   { pal: "grad", ch: 0.16, pos: 0.1 },
   { pal: "teal", ch: 0.12, pos: 0.12 },
   { pal: "ink", ch: 0.18, pos: 0.22 },
+];
+const FRAME_CONTROLS: ControlsSpec = [
+  ["枠 / FRAME", [["frameAnimation", "枠のサイズアニメーション", "c"]]],
+  ["固定サイズ / SIZE", [
+    ["frameWidth", "幅", "r", 10, 90, 1, "%"],
+    ["frameHeight", "高さ", "r", 10, 90, 1, "%"],
+  ], { key: "frameAnimation", equals: 0 }],
 ];
 const XYZ_CONTROLS: ControlsSpec = [
   [
@@ -168,7 +157,7 @@ export const STRUCTURE_02: MultiModeContent = {
       label: "XYZ ライン",
       defaults: XYZ_DEFAULTS,
       presets: XYZ_PRESETS,
-      controls: XYZ_CONTROLS,
+      controls: [...FRAME_CONTROLS, ...XYZ_CONTROLS],
       create: createXyzMode,
     },
     {
@@ -182,6 +171,7 @@ export const STRUCTURE_02: MultiModeContent = {
         { ...MESH_DEFAULTS, meshTopLeft: "#113d72", meshTopRight: "#378ab2", meshBottomLeft: "#64d9da", meshBottomRight: "#10233d" },
       ],
       controls: [
+        ...FRAME_CONTROLS,
         ...MESH_CONTROLS,
         ["背景 / BACKGROUND", [["transparent", "背景透過", "c"], ["bg", "背景色", "k"]]],
         XYZ_CONTROLS[1],
