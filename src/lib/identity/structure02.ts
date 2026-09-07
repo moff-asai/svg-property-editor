@@ -1,12 +1,26 @@
 // 02 を「構造テンプレート」化: 面取り四角形を土台に、モードで中身を切替。
 //  - xyz: generator3 draw2 の canvas 版（箱が幅/高さ変形＋XYZ線）
 import { fillBg } from "./engine";
-import { XYZ_PAL, renderXyzLineSvg, type XyzPal } from "./xyzLine";
+import {
+  XYZ_CHAMFER_MAX,
+  XYZ_CHAMFER_MIN,
+  XYZ_LINE_WIDTH_MAX,
+  XYZ_LINE_WIDTH_MIN,
+  XYZ_LINE_BLEND_MODES,
+  XYZ_LINE_COLOR_DEFAULT,
+  XYZ_LINE_OPACITY_DEFAULT,
+  XYZ_PAL,
+  renderXyzLineSvg,
+  xyzLineBlendMode,
+  xyzLineColor,
+  xyzLineOpacity,
+  type XyzPal,
+} from "./xyzLine";
 import { createMeshPainter, meshParams, MESH_CONTROLS, MESH_DEFAULTS } from "./meshGradient";
 import { xyzFrameSize, XYZ_FRAME_DEFAULTS, type XyzFrameParams } from "./xyzFrame";
-import { traceXyzShape, xyzRoundRatio, XYZ_ROUND_DEFAULT } from "./xyzShape";
+import { traceXyzShape, xyzRoundRatio } from "./xyzShape";
 import { drawTypo } from "./xyzTypo";
-import type { CanvasRenderer, ControlsSpec, MultiModeContent, Params } from "./types";
+import type { CanvasRenderer, ControlGroup, ControlsSpec, MultiModeContent, Params } from "./types";
 
 /* ---------- XYZ モード（draw2 canvas 版） ---------- */
 interface XyzModeParams extends XyzFrameParams {
@@ -16,6 +30,9 @@ interface XyzModeParams extends XyzFrameParams {
   round?: number;
   pos: number;
   lw: number;
+  lineBlendMode?: string;
+  lineColor?: string;
+  lineOpacity?: number;
   transparent?: number; // 背景透過
 }
 function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number, params: Params,
@@ -51,8 +68,9 @@ function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number
     d = c2 * 0.75 + P.pos * dmax,
     jx = x0 + bw - d,
     jy = y0 + bh - d;
-  ctx.strokeStyle = mesh?.meshLine ?? pal.line;
-  ctx.globalAlpha = mesh?.meshLineOpacity ?? 1;
+  ctx.strokeStyle = mesh?.meshLine ?? xyzLineColor(P);
+  ctx.globalAlpha = mesh?.meshLineOpacity ?? xyzLineOpacity(P);
+  ctx.globalCompositeOperation = xyzLineBlendMode(P.lineBlendMode);
   ctx.lineWidth = Math.max(1.2, m * 0.012 * P.lw);
   ctx.lineJoin = "round";
   ctx.lineCap = "butt";
@@ -62,11 +80,13 @@ function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number
   ctx.moveTo(jx, jy);
   ctx.lineTo(x0 + bw + 2, jy);
   ctx.moveTo(jx, jy);
-  const k = Math.min(jx - x0, y0 + bh - jy) + 4;
+  // 斜めライン(Z)は butt キャップの切り口が縁と平行にならないため、少し外へ出す
+  // 程度では端の角度が見えてしまう。縁より十分外まで伸ばしクリップで終端させる。
+  const k = Math.min(jx - x0, y0 + bh - jy) + Math.max(bw, bh);
   ctx.lineTo(jx - k, jy + k);
   ctx.stroke();
   ctx.restore();
-  if (P.typoVisible !== 0) drawTypo(ctx, x0, y0, bw, bh, radius);
+  if (P.typoVisible !== 0) drawTypo(ctx, x0, y0, bw, bh, radius, P.typoColor);
 }
 function createXyzMode(mesh = false): CanvasRenderer {
   const paintMesh = mesh ? createMeshPainter() : undefined;
@@ -81,6 +101,9 @@ function createXyzMode(mesh = false): CanvasRenderer {
         round: p.round,
         pos: p.pos,
         lw: p.lw,
+        lineBlendMode: xyzLineBlendMode(p.lineBlendMode),
+        lineColor: p.lineColor,
+        lineOpacity: p.lineOpacity,
         loopDur: loopSeconds,
         size: 900,
         // canvas(EXPORT_W:H=1280:720=16:9) と同じ比で書き出し、停止フレームと一致させる
@@ -94,6 +117,7 @@ function createXyzMode(mesh = false): CanvasRenderer {
         frameWidth: p.frameWidth,
         frameHeight: p.frameHeight,
         typoVisible: p.typoVisible,
+        typoColor: p.typoColor,
         mesh: mesh ? meshParams(params) : undefined,
       });
     },
@@ -102,12 +126,18 @@ function createXyzMode(mesh = false): CanvasRenderer {
 
 const XYZ_DEFAULTS: Params = {
   ...XYZ_FRAME_DEFAULTS,
+  frameWidth: 90,
+  frameHeight: 65,
+  typoVisible: 1,
   bg: "#ffffff",
   pal: "purple",
-  ch: 0.13,
-  round: XYZ_ROUND_DEFAULT,
-  pos: 0.18,
-  lw: 0.9,
+  ch: 0.33,
+  round: 0,
+  pos: 0.45,
+  lw: 4.7,
+  lineBlendMode: "soft-light",
+  lineColor: XYZ_LINE_COLOR_DEFAULT,
+  lineOpacity: XYZ_LINE_OPACITY_DEFAULT,
   transparent: 1,
 };
 const XYZ_PRESETS: Params[] = [
@@ -116,13 +146,42 @@ const XYZ_PRESETS: Params[] = [
   { pal: "teal", ch: 0.12, pos: 0.12 },
   { pal: "ink", ch: 0.18, pos: 0.22 },
 ];
+const XYZ_MESH_DEFAULTS: Params = {
+  ...XYZ_DEFAULTS,
+  ...MESH_DEFAULTS,
+  meshInsetX: 0.03,
+  meshInsetY: 0.1,
+  meshTopLeftRange: 129,
+  meshTopRightRange: 105,
+  meshBottomLeftRange: 182,
+  meshBottomRightRange: 97,
+  meshMotion: 0.1,
+  meshMotionPattern: "orbit",
+  meshPadding: 0.02,
+  meshBlur: 0.05,
+  meshLineOpacity: 0.5,
+};
 const FRAME_CONTROLS: ControlsSpec = [
   ["枠 / FRAME", [["frameAnimation", "枠のサイズアニメーション", "c"]]],
-  ["タイポ / TYPOGRAPHY", [["typoVisible", "タイポを表示", "c"]]],
-  ["固定サイズ / SIZE", [
+  ["タイポ / TYPOGRAPHY", [
+    ["typoVisible", "タイポを表示", "c"],
+    ["typoColor", "タイポの色", "k"],
+  ]],
+  // アニメON時は「拡大ピーク」（この比率まで大きくなって戻る）、OFF時は固定サイズ。
+  ["サイズ / SIZE", [
     ["frameWidth", "幅", "r", 10, 90, 1, "%"],
     ["frameHeight", "高さ", "r", 10, 90, 1, "%"],
-  ], { key: "frameAnimation", equals: 0 }],
+  ]],
+];
+const TUNE_CONTROLS: ControlGroup = [
+  "調整 / TUNE",
+  [
+    ["ch", "面取り", "r", XYZ_CHAMFER_MIN, XYZ_CHAMFER_MAX, 0.005, ""],
+    ["round", "右上・左下の角丸", "r", 0, 0.25, 0.005, ""],
+    ["pos", "交点位置", "r", 0, 1, 0.01, ""],
+    ["lw", "線の太さ", "r", XYZ_LINE_WIDTH_MIN, XYZ_LINE_WIDTH_MAX, 0.05, ""],
+    ["lineBlendMode", "線の重なり方", "o", XYZ_LINE_BLEND_MODES],
+  ],
 ];
 const XYZ_CONTROLS: ControlsSpec = [
   [
@@ -133,15 +192,11 @@ const XYZ_CONTROLS: ControlsSpec = [
       ["bg", "背景色", "k"],
     ],
   ],
-  [
-    "調整 / TUNE",
-    [
-      ["ch", "面取り", "r", 0.05, 0.25, 0.005, ""],
-      ["round", "右上・左下の角丸", "r", 0, 0.25, 0.005, ""],
-      ["pos", "交点位置", "r", 0, 1, 0.01, ""],
-      ["lw", "線の太さ", "r", 0.3, 2.5, 0.05, ""],
-    ],
-  ],
+  ["ライン / LINE", [
+    ["lineColor", "ライン色", "k"],
+    ["lineOpacity", "ライン不透明度", "r", 0, 1, 0.01, ""],
+  ]],
+  TUNE_CONTROLS,
 ];
 
 export const STRUCTURE_02: MultiModeContent = {
@@ -161,7 +216,7 @@ export const STRUCTURE_02: MultiModeContent = {
     {
       value: "xyz-mesh",
       label: "メッシュグラデーション",
-      defaults: { ...XYZ_DEFAULTS, ...MESH_DEFAULTS },
+      defaults: XYZ_MESH_DEFAULTS,
       presets: [
         { ...MESH_DEFAULTS },
         { ...MESH_DEFAULTS, meshTopLeft: "#f7f6ff", meshTopRight: "#eeedff", meshBottomLeft: "#edfdf7", meshBottomRight: "#daeafa", meshLineOpacity: 0.6 },
@@ -174,7 +229,7 @@ export const STRUCTURE_02: MultiModeContent = {
         ...FRAME_CONTROLS,
         ...MESH_CONTROLS,
         ["背景 / BACKGROUND", [["transparent", "背景透過", "c"], ["bg", "背景色", "k"]]],
-        XYZ_CONTROLS[1],
+        TUNE_CONTROLS,
       ],
       create: () => createXyzMode(true),
     },

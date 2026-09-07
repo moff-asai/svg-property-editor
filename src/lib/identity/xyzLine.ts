@@ -6,12 +6,35 @@
 // 純粋関数（DOM 非依存）。
 
 import { meshSvg, type MeshGradientParams } from "./meshGradient";
-import { xyzFrameSize, XYZ_FRAME_DEFAULTS, type XyzFrameParams } from "./xyzFrame";
+import { xyzFrameRatio, xyzFrameSize, XYZ_FRAME_DEFAULTS, type XyzFrameParams } from "./xyzFrame";
 import { xyzRoundRatio, xyzShapePath, XYZ_ROUND_DEFAULT } from "./xyzShape";
 import { typoSvg } from "./xyzTypo";
 
 export const XYZ_PALS = ["purple", "teal", "grad", "ink"] as const;
 export type XyzPal = (typeof XYZ_PALS)[number];
+
+export const XYZ_CHAMFER_MIN = 0.05;
+export const XYZ_CHAMFER_MAX = 0.4;
+export const XYZ_LINE_WIDTH_MIN = 0.3;
+export const XYZ_LINE_WIDTH_MAX = 5;
+export const XYZ_LINE_BLEND_DEFAULT = "source-over";
+export const XYZ_LINE_BLEND_MODES = [
+  ["source-over", "通常"],
+  ["soft-light", "ソフトライト"],
+  ["hard-light", "ハードライト"],
+  ["overlay", "オーバーレイ"],
+  ["multiply", "乗算"],
+  ["screen", "スクリーン"],
+  ["color-dodge", "覆い焼きカラー"],
+  ["color-burn", "焼き込みカラー"],
+  ["difference", "差の絶対値"],
+] as const;
+export type XyzLineBlendMode = (typeof XYZ_LINE_BLEND_MODES)[number][0];
+
+export function xyzLineBlendMode(value: string | undefined): XyzLineBlendMode {
+  return XYZ_LINE_BLEND_MODES.find(([mode]) => mode === value)?.[0]
+    ?? XYZ_LINE_BLEND_DEFAULT;
+}
 
 // PAL2 (generator3 HTML:777-782)
 export const XYZ_PAL: Record<XyzPal, { fill: string[]; line: string }> = {
@@ -21,12 +44,29 @@ export const XYZ_PAL: Record<XyzPal, { fill: string[]; line: string }> = {
   ink: { fill: ["#101012"], line: "#4A4A4E" },
 };
 
+// ライン: メッシュモードの meshLine / meshLineOpacity と同じ操作感で常に指定する。
+export const XYZ_LINE_COLOR_DEFAULT = "#ffffff";
+export const XYZ_LINE_OPACITY_DEFAULT = 1;
+
+export function xyzLineColor(p: { lineColor?: string }): string {
+  return typeof p.lineColor === "string" && /^#[\da-f]{6}$/i.test(p.lineColor)
+    ? p.lineColor : XYZ_LINE_COLOR_DEFAULT;
+}
+
+export function xyzLineOpacity(p: { lineOpacity?: number }): number {
+  return typeof p.lineOpacity === "number" && Number.isFinite(p.lineOpacity)
+    ? Math.max(0, Math.min(1, p.lineOpacity)) : XYZ_LINE_OPACITY_DEFAULT;
+}
+
 export interface XyzLineParams extends XyzFrameParams {
   pal: XyzPal;
-  ch: number; // 面取り .05–.25
+  ch: number; // 面取り .05–.4
   round?: number; // 右上・左下の角丸 0–.25
   pos: number; // 交点位置 0–1
-  lw: number; // 線の太さ .3–2.5
+  lw: number; // 線の太さ .3–5
+  lineBlendMode?: XyzLineBlendMode;
+  lineColor?: string; // ライン色
+  lineOpacity?: number; // ライン不透明度 0–1
   loopDur: number; // ループ長(秒)
   size: number; // 正方 viewBox 一辺
   bg?: string; // 背景色（transparent 未指定時に背景 rect を出力）
@@ -45,6 +85,9 @@ export const XYZ_DEFAULTS: XyzLineParams = {
   round: XYZ_ROUND_DEFAULT,
   pos: 0.18,
   lw: 0.9,
+  lineBlendMode: XYZ_LINE_BLEND_DEFAULT,
+  lineColor: XYZ_LINE_COLOR_DEFAULT,
+  lineOpacity: XYZ_LINE_OPACITY_DEFAULT,
   loopDur: 6,
   size: 1000,
 };
@@ -63,15 +106,14 @@ export const XYZ_CONTROLS: {
   max: number;
   step: number;
 }[] = [
-  { key: "ch", label: "面取り", min: 0.05, max: 0.25, step: 0.005 },
+  { key: "ch", label: "面取り", min: XYZ_CHAMFER_MIN, max: XYZ_CHAMFER_MAX, step: 0.005 },
   { key: "pos", label: "交点位置", min: 0, max: 1, step: 0.01 },
-  { key: "lw", label: "線の太さ", min: 0.3, max: 2.5, step: 0.05 },
+  { key: "lw", label: "線の太さ", min: XYZ_LINE_WIDTH_MIN, max: XYZ_LINE_WIDTH_MAX, step: 0.05 },
   { key: "loopDur", label: "ループ長(秒)", min: 2, max: 10, step: 0.5 },
 ];
 
-// アニメの最大サイズ（w/h ともに 0.64 まで成長）。この基準で描画し scale で縮める。
-const WMAX = 0.64;
-const HMAX = 0.64;
+// アニメの最大サイズ＝固定サイズ比率（frameWidth/frameHeight）。この基準で描画し
+// scale で縮める（xyzFrameRatio が canvas と共通のピークを返す）。
 const KF_STOPS = 26;
 
 const f = (n: number) => n.toFixed(2);
@@ -92,7 +134,9 @@ function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
   const d = c * 0.75 + p.pos * dmax;
   const jx = x0 + bw - d;
   const jy = y0 + bh - d;
-  const k = Math.min(jx - x0, y0 + bh - jy) + 4;
+  // 斜めライン(Z)は縁より十分外まで伸ばし、切り口ではなくクリップで終端させる
+  // （少し外へ出す程度だと butt キャップの角度が見えてしまう）。
+  const k = Math.min(jx - x0, y0 + bh - jy) + Math.max(bw, bh);
   const rayD =
     `M ${f(jx)} ${f(jy)} L ${f(jx)} ${f(y0 - 2)} ` +
     `M ${f(jx)} ${f(jy)} L ${f(x0 + bw + 2)} ${f(jy)} ` +
@@ -108,15 +152,18 @@ function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
   const bgRect =
     p.bg && !p.transparent ? `<rect width="${W}" height="${H}" fill="${p.bg}"/>` : "";
   const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh, c, radius, ph) : undefined;
+  const blendMode = xyzLineBlendMode(p.lineBlendMode);
+  const blendStyle = blendMode === XYZ_LINE_BLEND_DEFAULT
+    ? "" : ` style="mix-blend-mode:${blendMode}"`;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     bgRect +
     `<defs><clipPath id="xyz-clip"><path d="${shape}"/></clipPath>${mesh?.defs ?? gradDef}</defs>` +
     (mesh?.body ?? `<path data-eid="xyz-fill" d="${shape}" fill="${fillAttr}"/>`) +
     `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
-    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}" ` +
+    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? xyzLineColor(p)}" stroke-opacity="${p.mesh?.meshLineOpacity ?? xyzLineOpacity(p)}"${blendStyle} ` +
     `stroke-width="${f(lineW)}" stroke-linejoin="round" stroke-linecap="butt"/>` +
-    `</g>` + (p.typoVisible === 0 ? "" : typoSvg(x0, y0, bw, bh, radius)) + `</svg>`
+    `</g>` + (p.typoVisible === 0 ? "" : typoSvg(x0, y0, bw, bh, radius, p.typoColor)) + `</svg>`
   );
 }
 
@@ -159,12 +206,13 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
   // 幅/高さ変形を中心拡縮の CSS scale キーフレームで再現（seqHold をサンプリング）
   const cx = W / 2;
   const cy = H / 2;
+  const { width: wMax, height: hMax } = xyzFrameRatio(p);
   let frames = "";
   for (let i = 0; p.frameAnimation !== 0 && i < KF_STOPS; i++) {
     const ph = i / (KF_STOPS - 1);
     const { width: wv, height: hv } = xyzFrameSize(1, 1, ph, p);
-    const sx = (wv / WMAX).toFixed(4);
-    const sy = (hv / HMAX).toFixed(4);
+    const sx = (wv / wMax).toFixed(4);
+    const sy = (hv / hMax).toFixed(4);
     const pct = ((ph * 100).toFixed(2) + "%").replace(".00%", "%");
     frames += `${pct}{transform:translate(${f(cx)}px,${f(cy)}px) scale(${sx},${sy}) translate(${f(-cx)}px,${f(-cy)}px)}`;
   }
@@ -175,6 +223,9 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
   const bgRect =
     p.bg && !p.transparent ? `<rect width="${W}" height="${H}" fill="${p.bg}"/>` : "";
   const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh, c, radius, 0, p.loopDur) : undefined;
+  const blendMode = xyzLineBlendMode(p.lineBlendMode);
+  const blendStyle = blendMode === XYZ_LINE_BLEND_DEFAULT
+    ? "" : ` style="mix-blend-mode:${blendMode}"`;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     bgRect +
@@ -184,9 +235,9 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
     (mesh?.body ?? `<path data-eid="xyz-fill" d="${shape}" fill="${fillAttr}"/>`) +
     `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
     // vector-effect: 箱の scale アニメで線幅が変わらない（非等方scaleでの太さ歪みを防ぐ）
-    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}" ` +
+    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? xyzLineColor(p)}" stroke-opacity="${p.mesh?.meshLineOpacity ?? xyzLineOpacity(p)}"${blendStyle} ` +
     `stroke-width="${f(lineW)}" vector-effect="non-scaling-stroke" ` +
     `stroke-linejoin="round" stroke-linecap="butt"/>` +
-    `</g>` + (p.typoVisible === 0 ? "" : typoSvg(x0, y0, bw, bh, radius)) + `</g></svg>`
+    `</g>` + (p.typoVisible === 0 ? "" : typoSvg(x0, y0, bw, bh, radius, p.typoColor)) + `</g></svg>`
   );
 }

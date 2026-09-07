@@ -19,7 +19,14 @@ const TYPO_PATHS = [
 ];
 const TYPO_WIDTH = 314.89;
 const TYPO_HEIGHT = 121.13;
-const TYPO_COLOR = "#202322";
+const TYPO_SUPERSAMPLE = 4;
+export const XYZ_TYPO_COLOR_DEFAULT = "#202322";
+
+export function xyzTypoColor(value: string | undefined) {
+  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)
+    ? value
+    : XYZ_TYPO_COLOR_DEFAULT;
+}
 
 export function typoLayout(x: number, y: number, w: number, h: number, radius: number) {
   const min = Math.min(w, h);
@@ -31,21 +38,68 @@ export function typoLayout(x: number, y: number, w: number, h: number, radius: n
 }
 
 let canvasPaths: Path2D[] | undefined;
-export function drawTypo(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, radius: number) {
+let rasterCanvas: HTMLCanvasElement | undefined;
+let rasterColor: string | undefined;
+
+function typoRaster(color: string) {
   canvasPaths ??= TYPO_PATHS.map(d => new Path2D(d));
+  rasterCanvas ??= document.createElement("canvas");
+  const canvas = rasterCanvas;
+  const width = Math.ceil(TYPO_WIDTH * TYPO_SUPERSAMPLE);
+  const height = Math.ceil(TYPO_HEIGHT * TYPO_SUPERSAMPLE);
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+    rasterColor = undefined;
+  }
+  if (rasterColor !== color) {
+    const rasterCtx = canvas.getContext("2d");
+    if (!rasterCtx) return undefined;
+    rasterCtx.setTransform(1, 0, 0, 1, 0, 0);
+    rasterCtx.clearRect(0, 0, width, height);
+    rasterCtx.setTransform(TYPO_SUPERSAMPLE, 0, 0, TYPO_SUPERSAMPLE, 0, 0);
+    rasterCtx.fillStyle = color;
+    canvasPaths.forEach(path => rasterCtx.fill(path));
+    rasterColor = color;
+  }
+  return canvas;
+}
+
+export function drawTypo(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radius: number,
+  color?: string,
+) {
   const layout = typoLayout(x, y, w, h, radius);
+  const raster = typoRaster(xyzTypoColor(color));
+  if (!raster) return;
   ctx.save();
-  ctx.translate(layout.x, layout.y);
-  ctx.scale(layout.scale, layout.scale);
   ctx.globalAlpha = 1;
-  ctx.fillStyle = TYPO_COLOR;
-  canvasPaths.forEach(path => ctx.fill(path));
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(
+    raster,
+    layout.x,
+    layout.y,
+    TYPO_WIDTH * layout.scale,
+    TYPO_HEIGHT * layout.scale,
+  );
   ctx.restore();
 }
 
-export function typoSvg(x: number, y: number, w: number, h: number, radius: number) {
+export function typoSvg(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  radius: number,
+  color?: string,
+) {
   const layout = typoLayout(x, y, w, h, radius);
-  return `<g data-eid="xyz-typo" fill="${TYPO_COLOR}" transform="translate(${layout.x} ${layout.y}) scale(${layout.scale})">` +
+  return `<g data-eid="xyz-typo" fill="${xyzTypoColor(color)}" transform="translate(${layout.x} ${layout.y}) scale(${layout.scale})">` +
     TYPO_PATHS.map(d => `<path d="${d}"/>`).join("") + "</g>";
 }
-
