@@ -1,6 +1,7 @@
 import type { ControlsSpec, Params } from "./types";
-import { blurCanvas, hasFilter, poly } from "./engine";
+import { blurCanvas, hasFilter } from "./engine";
 import { influenceRanges, influencePixels, influenceSvg, INFLUENCE_GRID } from "./meshInfluence";
+import { insetXyzShape, traceXyzShape, xyzShapePath } from "./xyzShape";
 
 // Four drifting color points. Canvas and SVG share the same radial color field and
 // periodic paths so seeking, video and still exports agree. No bitmap needed.
@@ -123,32 +124,22 @@ export function meshPoints(p: MeshGradientParams, phase: number): Point[] {
   });
 }
 
-// Offset every edge by the same distance, including the two 45° chamfers.
-// Once an inset passes the chamfer, the inner contour becomes rectangular.
-function insetContour(w: number, h: number, chamfer: number, padding: number) {
-  const cut = Math.max(0, chamfer - (2 - Math.SQRT2) * padding);
-  return [
-    [padding + cut, padding], [w - padding, padding],
-    [w - padding, h - padding - cut], [w - padding - cut, h - padding],
-    [padding, h - padding], [padding, padding + cut],
-  ];
-}
-
 export function createMeshPainter() {
   let tile: HTMLCanvasElement | undefined;
   let mask: HTMLCanvasElement | undefined;
   let field: HTMLCanvasElement | undefined;
   let lastKey = "";
   let lastMaskKey = "";
-  return (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, p: MeshGradientParams, chamfer: number, phase: number) => {
+  return (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, p: MeshGradientParams, chamfer: number, radius: number, phase: number) => {
     const scale = 512 / Math.max(w, h);
     const tw = Math.max(1, Math.round(w * scale));
     const th = Math.max(1, Math.round(h * scale));
     const min = Math.min(tw, th);
     const cut = min * chamfer / Math.min(w, h);
+    const cornerRadius = min * radius / Math.min(w, h);
     const points = meshPoints(p, phase);
     const ranges = influenceRanges(p);
-    const maskKey = [p.meshPadding, p.meshBlur, tw, th, cut.toFixed(5)].join("|");
+    const maskKey = [p.meshPadding, p.meshBlur, tw, th, cut.toFixed(5), cornerRadius.toFixed(5)].join("|");
     const key = [p.meshTopLeft, p.meshTopRight, p.meshBottomLeft, p.meshBottomRight,
       p.meshBase, maskKey, ...ranges, ...points.flat()].join("|");
     if (!tile || key !== lastKey) {
@@ -177,7 +168,8 @@ export function createMeshPainter() {
         const nativeBlur = hasFilter();
         if (nativeBlur && blur > 0) m.filter = `blur(${blur}px)`;
         m.fillStyle = "white";
-        poly(m, insetContour(tw, th, cut, min * p.meshPadding));
+        const inset = insetXyzShape(tw, th, cut, cornerRadius, min * p.meshPadding);
+        traceXyzShape(m, inset.x, inset.y, inset.width, inset.height, inset.chamfer, inset.radius);
         m.fill();
         if (!nativeBlur && blur > 0) blurCanvas(mask, blur);
         lastMaskKey = maskKey;
@@ -194,17 +186,17 @@ export function createMeshPainter() {
   };
 }
 
-export function meshSvg(p: MeshGradientParams, x: number, y: number, w: number, h: number, chamfer: number, phase = 0, animatedSeconds?: number) {
+export function meshSvg(p: MeshGradientParams, x: number, y: number, w: number, h: number, chamfer: number, radius: number, phase = 0, animatedSeconds?: number) {
   const min = Math.min(w, h);
-  const contour = insetContour(w, h, chamfer, min * p.meshPadding)
-    .map(([px, py]) => `${x + px},${y + py}`).join(" ");
+  const inset = insetXyzShape(w, h, chamfer, radius, min * p.meshPadding);
+  const contour = xyzShapePath(x + inset.x, y + inset.y, inset.width, inset.height, inset.chamfer, inset.radius);
   const field = influenceSvg(p, ph => meshPoints(p, ph), x, y, w, h, phase, animatedSeconds);
   return {
     defs: field.defs +
       `<filter id="xyz-mesh-blur" filterUnits="userSpaceOnUse" x="${x}" y="${y}" width="${w}" height="${h}" color-interpolation-filters="sRGB">` +
       `<feGaussianBlur stdDeviation="${min * p.meshBlur}"/></filter>` +
       `<mask id="xyz-mesh-edge" maskUnits="userSpaceOnUse" x="${x}" y="${y}" width="${w}" height="${h}" style="mask-type:alpha">` +
-      `<polygon points="${contour}" fill="white" filter="url(#xyz-mesh-blur)"/></mask>`,
+      `<path d="${contour}" fill="white" filter="url(#xyz-mesh-blur)"/></mask>`,
     body: `<g data-eid="xyz-mesh" clip-path="url(#xyz-clip)">` +
       `<rect data-eid="xyz-mesh-base" x="${x}" y="${y}" width="${w}" height="${h}" fill="${p.meshBase}"/>` +
       `<g mask="url(#xyz-mesh-edge)">` +

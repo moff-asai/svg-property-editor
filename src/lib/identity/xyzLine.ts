@@ -7,6 +7,7 @@
 
 import { meshSvg, type MeshGradientParams } from "./meshGradient";
 import { xyzFrameSize, XYZ_FRAME_DEFAULTS, type XyzFrameParams } from "./xyzFrame";
+import { xyzRoundRatio, xyzShapePath, XYZ_ROUND_DEFAULT } from "./xyzShape";
 
 export const XYZ_PALS = ["purple", "teal", "grad", "ink"] as const;
 export type XyzPal = (typeof XYZ_PALS)[number];
@@ -22,6 +23,7 @@ export const XYZ_PAL: Record<XyzPal, { fill: string[]; line: string }> = {
 export interface XyzLineParams extends XyzFrameParams {
   pal: XyzPal;
   ch: number; // 面取り .05–.25
+  round?: number; // 右上・左下の角丸 0–.25
   pos: number; // 交点位置 0–1
   lw: number; // 線の太さ .3–2.5
   loopDur: number; // ループ長(秒)
@@ -39,6 +41,7 @@ export const XYZ_DEFAULTS: XyzLineParams = {
   ...XYZ_FRAME_DEFAULTS,
   pal: "purple",
   ch: 0.13,
+  round: XYZ_ROUND_DEFAULT,
   pos: 0.18,
   lw: 0.9,
   loopDur: 6,
@@ -80,17 +83,10 @@ function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
   const { width: bw, height: bh } = xyzFrameSize(W, H, ph, p);
   const m = Math.min(bw, bh);
   const c = m * p.ch;
+  const radius = m * xyzRoundRatio(p.round);
   const x0 = W / 2 - bw / 2;
   const y0 = H / 2 - bh / 2;
-  const pts: [number, number][] = [
-    [x0 + c, y0],
-    [x0 + bw, y0],
-    [x0 + bw, y0 + bh - c],
-    [x0 + bw - c, y0 + bh],
-    [x0, y0 + bh],
-    [x0, y0 + c],
-  ];
-  const points = pts.map(([x, y]) => `${f(x)},${f(y)}`).join(" ");
+  const shape = xyzShapePath(x0, y0, bw, bh, c, radius);
   const dmax = Math.min(bw, bh) - c * 1.4;
   const d = c * 0.75 + p.pos * dmax;
   const jx = x0 + bw - d;
@@ -110,12 +106,12 @@ function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
     : "";
   const bgRect =
     p.bg && !p.transparent ? `<rect width="${W}" height="${H}" fill="${p.bg}"/>` : "";
-  const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh, c, ph) : undefined;
+  const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh, c, radius, ph) : undefined;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     bgRect +
-    `<defs><clipPath id="xyz-clip"><polygon points="${points}"/></clipPath>${mesh?.defs ?? gradDef}</defs>` +
-    (mesh?.body ?? `<polygon data-eid="xyz-fill" points="${points}" fill="${fillAttr}"/>`) +
+    `<defs><clipPath id="xyz-clip"><path d="${shape}"/></clipPath>${mesh?.defs ?? gradDef}</defs>` +
+    (mesh?.body ?? `<path data-eid="xyz-fill" d="${shape}" fill="${fillAttr}"/>`) +
     `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
     `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}" ` +
     `stroke-width="${f(lineW)}" stroke-linejoin="round" stroke-linecap="butt"/>` +
@@ -131,18 +127,11 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
   const { width: bw, height: bh } = xyzFrameSize(W, H, 0.7, p);
   const m = Math.min(bw, bh);
   const c = m * p.ch;
+  const radius = m * xyzRoundRatio(p.round);
   const x0 = W / 2 - bw / 2;
   const y0 = H / 2 - bh / 2;
 
-  const pts: [number, number][] = [
-    [x0 + c, y0],
-    [x0 + bw, y0],
-    [x0 + bw, y0 + bh - c],
-    [x0 + bw - c, y0 + bh],
-    [x0, y0 + bh],
-    [x0, y0 + c],
-  ];
-  const points = pts.map(([x, y]) => `${f(x)},${f(y)}`).join(" ");
+  const shape = xyzShapePath(x0, y0, bw, bh, c, radius);
 
   // 交点 J: 右下チャンファー起点から左上へ（pos で位置指定）
   const dmax = Math.min(bw, bh) - c * 1.4;
@@ -184,14 +173,14 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
 
   const bgRect =
     p.bg && !p.transparent ? `<rect width="${W}" height="${H}" fill="${p.bg}"/>` : "";
-  const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh, c, 0, p.loopDur) : undefined;
+  const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh, c, radius, 0, p.loopDur) : undefined;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     bgRect +
     (p.frameAnimation === 0 ? "" : `<style>${style}</style>`) +
-    `<defs><clipPath id="xyz-clip"><polygon points="${points}"/></clipPath>${mesh?.defs ?? gradDef}</defs>` +
+    `<defs><clipPath id="xyz-clip"><path d="${shape}"/></clipPath>${mesh?.defs ?? gradDef}</defs>` +
     `<g data-eid="xyz-box"${p.frameAnimation === 0 ? "" : ' class="xyz-anim"'}>` +
-    (mesh?.body ?? `<polygon data-eid="xyz-fill" points="${points}" fill="${fillAttr}"/>`) +
+    (mesh?.body ?? `<path data-eid="xyz-fill" d="${shape}" fill="${fillAttr}"/>`) +
     `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
     // vector-effect: 箱の scale アニメで線幅が変わらない（非等方scaleでの太さ歪みを防ぐ）
     `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}" ` +

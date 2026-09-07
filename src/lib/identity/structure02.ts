@@ -1,27 +1,18 @@
 // 02 を「構造テンプレート」化: 面取り四角形を土台に、モードで中身を切替。
 //  - xyz: generator3 draw2 の canvas 版（箱が幅/高さ変形＋XYZ線）
-import { poly, fillBg } from "./engine";
+import { fillBg } from "./engine";
 import { XYZ_PAL, renderXyzLineSvg, type XyzPal } from "./xyzLine";
 import { createMeshPainter, meshParams, MESH_CONTROLS, MESH_DEFAULTS } from "./meshGradient";
 import { xyzFrameSize, XYZ_FRAME_DEFAULTS, type XyzFrameParams } from "./xyzFrame";
+import { traceXyzShape, xyzRoundRatio, XYZ_ROUND_DEFAULT } from "./xyzShape";
 import type { CanvasRenderer, ControlsSpec, MultiModeContent, Params } from "./types";
-
-function chamfer(x0: number, y0: number, bw: number, bh: number, c2: number): number[][] {
-  return [
-    [x0 + c2, y0],
-    [x0 + bw, y0],
-    [x0 + bw, y0 + bh - c2],
-    [x0 + bw - c2, y0 + bh],
-    [x0, y0 + bh],
-    [x0, y0 + c2],
-  ];
-}
 
 /* ---------- XYZ モード（draw2 canvas 版） ---------- */
 interface XyzModeParams extends XyzFrameParams {
   bg: string;
   pal: XyzPal;
   ch: number;
+  round?: number;
   pos: number;
   lw: number;
   transparent?: number; // 背景透過
@@ -33,6 +24,7 @@ function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number
   const { width: bw, height: bh } = xyzFrameSize(W, H, ph, P);
   const m = Math.min(bw, bh),
     c2 = m * P.ch,
+    radius = m * xyzRoundRatio(P.round),
     x0 = W / 2 - bw / 2,
     y0 = H / 2 - bh / 2;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -40,13 +32,12 @@ function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number
   ctx.filter = "none";
   ctx.globalCompositeOperation = "source-over";
   fillBg(ctx, W, H, P.bg, !!P.transparent);
-  const pts = chamfer(x0, y0, bw, bh, c2);
   const pal = XYZ_PAL[P.pal];
   ctx.save();
-  poly(ctx, pts);
+  traceXyzShape(ctx, x0, y0, bw, bh, c2, radius);
   if (mesh && paintMesh) {
     ctx.clip();
-    paintMesh(ctx, x0, y0, bw, bh, mesh, c2, ph);
+    paintMesh(ctx, x0, y0, bw, bh, mesh, c2, radius, ph);
   } else if (pal.fill.length === 2) {
     const g = ctx.createLinearGradient(x0, y0, x0 + bw, y0);
     g.addColorStop(0, pal.fill[0]);
@@ -85,6 +76,7 @@ function createXyzMode(mesh = false): CanvasRenderer {
       return renderXyzLineSvg({
         pal: p.pal,
         ch: p.ch,
+        round: p.round,
         pos: p.pos,
         lw: p.lw,
         loopDur: loopSeconds,
@@ -110,6 +102,7 @@ const XYZ_DEFAULTS: Params = {
   bg: "#ffffff",
   pal: "purple",
   ch: 0.13,
+  round: XYZ_ROUND_DEFAULT,
   pos: 0.18,
   lw: 0.9,
   transparent: 1,
@@ -140,6 +133,7 @@ const XYZ_CONTROLS: ControlsSpec = [
     "調整 / TUNE",
     [
       ["ch", "面取り", "r", 0.05, 0.25, 0.005, ""],
+      ["round", "右上・左下の角丸", "r", 0, 0.25, 0.005, ""],
       ["pos", "交点位置", "r", 0, 1, 0.01, ""],
       ["lw", "線の太さ", "r", 0.3, 2.5, 0.05, ""],
     ],
