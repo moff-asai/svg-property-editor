@@ -68,7 +68,7 @@ function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number
   poly(ctx, pts);
   if (mesh && paintMesh) {
     ctx.clip();
-    paintMesh(ctx, x0, y0, bw, bh, mesh);
+    paintMesh(ctx, x0, y0, bw, bh, mesh, c2);
   } else if (pal.fill.length === 2) {
     const g = ctx.createLinearGradient(x0, y0, x0 + bw, y0);
     g.addColorStop(0, pal.fill[0]);
