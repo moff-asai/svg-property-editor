@@ -44,6 +44,17 @@ export const XYZ_PAL: Record<XyzPal, { fill: string[]; line: string }> = {
   ink: { fill: ["#101012"], line: "#4A4A4E" },
 };
 
+// ラインの色: 既定はパレット準拠。lineColorEnabled=1 のときだけ lineColor で上書きする
+// （パレットを切り替えても線色が取り残されないよう、明示オプトインにする）。
+export const XYZ_LINE_COLOR_DEFAULT = XYZ_PAL.purple.line;
+
+export function xyzLineColor(
+  pal: XyzPal,
+  p: { lineColorEnabled?: number; lineColor?: string },
+): string {
+  return p.lineColorEnabled && p.lineColor ? p.lineColor : XYZ_PAL[pal].line;
+}
+
 export interface XyzLineParams extends XyzFrameParams {
   pal: XyzPal;
   ch: number; // 面取り .05–.4
@@ -51,6 +62,8 @@ export interface XyzLineParams extends XyzFrameParams {
   pos: number; // 交点位置 0–1
   lw: number; // 線の太さ .3–5
   lineBlendMode?: XyzLineBlendMode;
+  lineColorEnabled?: number; // 1でラインの色を lineColor で指定
+  lineColor?: string; // ラインの色（lineColorEnabled=1 のときのみ有効）
   loopDur: number; // ループ長(秒)
   size: number; // 正方 viewBox 一辺
   bg?: string; // 背景色（transparent 未指定時に背景 rect を出力）
@@ -70,6 +83,8 @@ export const XYZ_DEFAULTS: XyzLineParams = {
   pos: 0.18,
   lw: 0.9,
   lineBlendMode: XYZ_LINE_BLEND_DEFAULT,
+  lineColorEnabled: 0,
+  lineColor: XYZ_LINE_COLOR_DEFAULT,
   loopDur: 6,
   size: 1000,
 };
@@ -142,7 +157,7 @@ function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
     `<defs><clipPath id="xyz-clip"><path d="${shape}"/></clipPath>${mesh?.defs ?? gradDef}</defs>` +
     (mesh?.body ?? `<path data-eid="xyz-fill" d="${shape}" fill="${fillAttr}"/>`) +
     `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
-    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}"${blendStyle} ` +
+    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? xyzLineColor(p.pal, p)}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}"${blendStyle} ` +
     `stroke-width="${f(lineW)}" stroke-linejoin="round" stroke-linecap="butt"/>` +
     `</g>` + (p.typoVisible === 0 ? "" : typoSvg(x0, y0, bw, bh, radius, p.typoColor)) + `</svg>`
   );
@@ -215,7 +230,7 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
     (mesh?.body ?? `<path data-eid="xyz-fill" d="${shape}" fill="${fillAttr}"/>`) +
     `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
     // vector-effect: 箱の scale アニメで線幅が変わらない（非等方scaleでの太さ歪みを防ぐ）
-    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}"${blendStyle} ` +
+    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? xyzLineColor(p.pal, p)}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}"${blendStyle} ` +
     `stroke-width="${f(lineW)}" vector-effect="non-scaling-stroke" ` +
     `stroke-linejoin="round" stroke-linecap="butt"/>` +
     `</g>` + (p.typoVisible === 0 ? "" : typoSvg(x0, y0, bw, bh, radius, p.typoColor)) + `</g></svg>`
