@@ -45,7 +45,7 @@ export const XYZ_PAL: Record<XyzPal, { fill: string[]; line: string }> = {
 };
 
 // ライン: メッシュモードの meshLine / meshLineOpacity と同じ操作感で常に指定する。
-export const XYZ_LINE_COLOR_DEFAULT = XYZ_PAL.purple.line;
+export const XYZ_LINE_COLOR_DEFAULT = "#ffffff";
 export const XYZ_LINE_OPACITY_DEFAULT = 1;
 
 export function xyzLineColor(p: { lineColor?: string }): string {
