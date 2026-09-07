@@ -14,20 +14,19 @@ test("the configured ratio is the animation peak", () => {
 test("the loop grows from a smaller start and shrinks back to it", () => {
   const start = xyzFrameSize(1000, 1000, 0, ANIM);
   const end = xyzFrameSize(1000, 1000, 0.999, ANIM);
-  assert.equal(Math.round(start.width), 220);
-  assert.equal(Math.round(start.height), 210);
-  assert.ok(start.width < 900 && start.height < 650);
+  assert.equal(Math.round(start.width), 306);
+  assert.equal(Math.round(start.height), 221);
   assert.ok(Math.abs(end.width - start.width) < 1);
   assert.ok(Math.abs(end.height - start.height) < 1);
 });
 
-test("a peak under the start ratio still grows instead of inverting", () => {
-  const tiny: XyzFrameParams = { frameAnimation: 1, frameWidth: 10, frameHeight: 10 };
-  const start = xyzFrameSize(1000, 1000, 0, tiny);
-  const peak = xyzFrameSize(1000, 1000, 0.7, tiny);
-  assert.equal(Math.round(peak.width), 100);
-  assert.equal(Math.round(peak.height), 100);
-  assert.ok(start.width <= peak.width && start.height <= peak.height);
+test("the small start keeps the peak's proportions", () => {
+  for (const p of [ANIM, { frameAnimation: 1, frameWidth: 40, frameHeight: 80 } as const]) {
+    const start = xyzFrameSize(1600, 900, 0, p);
+    const peak = xyzFrameSize(1600, 900, 0.7, p);
+    assert.ok(Math.abs(start.width / start.height - peak.width / peak.height) < 1e-9);
+    assert.ok(start.width < peak.width && start.height < peak.height);
+  }
 });
 
 test("frame motion off keeps the configured ratio at every phase", () => {

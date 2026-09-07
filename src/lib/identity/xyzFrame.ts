@@ -35,10 +35,10 @@ function fixedRatio(value: number | undefined) {
     ? Math.max(10, Math.min(90, value)) : 64) / 100;
 }
 
-// Where the grow/shrink loop begins and ends. The peak is the configured
-// size ratio, so the animation swells up to it instead of past it.
-const ANIM_START_W = 0.22;
-const ANIM_START_H = 0.21;
+// Where the grow/shrink loop begins and ends, as a share of the peak. Scaling
+// both axes by one factor keeps the small start the same shape as the peak
+// (0.34 is the .22/.64 the loop used before the peak became configurable).
+const ANIM_START_SCALE = 0.34;
 
 // The configured size ratio: the still frame size, and the animation peak.
 export function xyzFrameRatio(p: XyzFrameParams) {
@@ -52,8 +52,7 @@ export function xyzFrameSize(W: number, H: number, phase: number, p: XyzFramePar
   if (p.frameAnimation === 0) return { width: W * wMax, height: H * hMax };
   const hg = seqHold(phase, 0.06, 0.34, 0.72, 0.94);
   const wg = seqHold(phase, 0.42, 0.7, 0.72, 0.94);
-  // A peak below the start ratio would invert the loop, so clamp the start.
-  const w0 = Math.min(ANIM_START_W, wMax);
-  const h0 = Math.min(ANIM_START_H, hMax);
+  const w0 = wMax * ANIM_START_SCALE;
+  const h0 = hMax * ANIM_START_SCALE;
   return { width: W * (w0 + (wMax - w0) * wg), height: H * (h0 + (hMax - h0) * hg) };
 }
