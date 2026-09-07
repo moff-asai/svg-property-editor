@@ -9,7 +9,11 @@ export type Control =
   | readonly [key: string, label: string, t: "s", options: readonly string[]]
   | readonly [key: string, label: string, t: "o", options: readonly (readonly [string, string])[]];
 
-export type ControlGroup = readonly [title: string, controls: readonly Control[]];
+export type ControlGroup = readonly [
+  title: string,
+  controls: readonly Control[],
+  visibleWhen?: { readonly key: string; readonly equals: number | string },
+];
 export type ControlsSpec = readonly ControlGroup[];
 
 // number/string に加え、LIQUID GLASS の circles[] など配列値も保持できるようにする
@@ -26,7 +30,7 @@ export interface CanvasRenderer {
 
 // 1つのモード（= かつての単一 CanvasContent 相当）
 export interface CanvasMode {
-  value: string; // "hex-halo" | "xyz" | "data-cube" ...
+  value: string; // "xyz" | "hex-halo" | "liquid-glass" ...
   label: string;
   defaults: Params;
   presets: Params[];

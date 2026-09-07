@@ -5,6 +5,11 @@
 // getComputedStyle(transform) で正しく焼き込め、SVG書き出しでも単体でアニメする。
 // 純粋関数（DOM 非依存）。
 
+import { meshSvg, type MeshGradientParams } from "./meshGradient";
+import { xyzFrameSize, XYZ_FRAME_DEFAULTS, type XyzFrameParams } from "./xyzFrame";
+import { xyzRoundRatio, xyzShapePath, XYZ_ROUND_DEFAULT } from "./xyzShape";
+import { typoSvg } from "./xyzTypo";
+
 export const XYZ_PALS = ["purple", "teal", "grad", "ink"] as const;
 export type XyzPal = (typeof XYZ_PALS)[number];
 
@@ -16,9 +21,10 @@ export const XYZ_PAL: Record<XyzPal, { fill: string[]; line: string }> = {
   ink: { fill: ["#101012"], line: "#4A4A4E" },
 };
 
-export interface XyzLineParams {
+export interface XyzLineParams extends XyzFrameParams {
   pal: XyzPal;
   ch: number; // 面取り .05–.25
+  round?: number; // 右上・左下の角丸 0–.25
   pos: number; // 交点位置 0–1
   lw: number; // 線の太さ .3–2.5
   loopDur: number; // ループ長(秒)
@@ -29,11 +35,14 @@ export interface XyzLineParams {
   animated?: boolean; // false で phase の静止フレームを出力（アニメ無し）
   w?: number; // viewBox 幅（未指定時は size）。canvas と同じ比で書き出すため
   h?: number; // viewBox 高（未指定時は size）
+  mesh?: MeshGradientParams; // 四隅の色を補間するメッシュ塗り
 }
 
 export const XYZ_DEFAULTS: XyzLineParams = {
+  ...XYZ_FRAME_DEFAULTS,
   pal: "purple",
   ch: 0.13,
+  round: XYZ_ROUND_DEFAULT,
   pos: 0.18,
   lw: 0.9,
   loopDur: 6,
@@ -60,29 +69,9 @@ export const XYZ_CONTROLS: {
   { key: "loopDur", label: "ループ長(秒)", min: 2, max: 10, step: 0.5 },
 ];
 
-// generator3 のアニメ・エンベロープ（HTML:689-703）
-const clamp01 = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t);
-const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
-function easeSharp(t: number, k = 3) {
-  t = clamp01(t);
-  k = Math.max(0.6, k || 1);
-  const a = Math.pow(t, k),
-    b = Math.pow(1 - t, k);
-  return a / (a + b || 1);
-}
-function seqHold(ph: number, a: number, b: number, c: number, d: number, k = 3) {
-  ph = ((ph % 1) + 1) % 1;
-  if (ph < a || ph > d) return 0;
-  if (ph < b) return easeSharp((ph - a) / (b - a), k);
-  if (ph < c) return 1;
-  return 1 - easeSharp((ph - c) / (d - c), k);
-}
-
 // アニメの最大サイズ（w/h ともに 0.64 まで成長）。この基準で描画し scale で縮める。
 const WMAX = 0.64;
 const HMAX = 0.64;
-const EASE_H = 4.2;
-const EASE_W = 4.2;
 const KF_STOPS = 26;
 
 const f = (n: number) => n.toFixed(2);
@@ -92,23 +81,13 @@ const f = (n: number) => n.toFixed(2);
 // （キーフレーム/スケール無し＝そのまま止まった見た目のイラレ編集可ベクター）。
 function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
   const ph = (((p.phase ?? 0) % 1) + 1) % 1;
-  const hGrow = seqHold(ph, 0.06, 0.34, 0.72, 0.94, EASE_H);
-  const wGrow = seqHold(ph, 0.42, 0.7, 0.72, 0.94, EASE_W);
-  const bw = W * lerp(0.22, WMAX, wGrow);
-  const bh = H * lerp(0.21, HMAX, hGrow);
+  const { width: bw, height: bh } = xyzFrameSize(W, H, ph, p);
   const m = Math.min(bw, bh);
   const c = m * p.ch;
+  const radius = m * xyzRoundRatio(p.round);
   const x0 = W / 2 - bw / 2;
   const y0 = H / 2 - bh / 2;
-  const pts: [number, number][] = [
-    [x0 + c, y0],
-    [x0 + bw, y0],
-    [x0 + bw, y0 + bh - c],
-    [x0 + bw - c, y0 + bh],
-    [x0, y0 + bh],
-    [x0, y0 + c],
-  ];
-  const points = pts.map(([x, y]) => `${f(x)},${f(y)}`).join(" ");
+  const shape = xyzShapePath(x0, y0, bw, bh, c, radius);
   const dmax = Math.min(bw, bh) - c * 1.4;
   const d = c * 0.75 + p.pos * dmax;
   const jx = x0 + bw - d;
@@ -128,15 +107,16 @@ function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
     : "";
   const bgRect =
     p.bg && !p.transparent ? `<rect width="${W}" height="${H}" fill="${p.bg}"/>` : "";
+  const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh, c, radius, ph) : undefined;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     bgRect +
-    `<defs><clipPath id="xyz-clip"><polygon points="${points}"/></clipPath>${gradDef}</defs>` +
-    `<polygon data-eid="xyz-fill" points="${points}" fill="${fillAttr}"/>` +
+    `<defs><clipPath id="xyz-clip"><path d="${shape}"/></clipPath>${mesh?.defs ?? gradDef}</defs>` +
+    (mesh?.body ?? `<path data-eid="xyz-fill" d="${shape}" fill="${fillAttr}"/>`) +
     `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
-    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${pal.line}" ` +
+    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}" ` +
     `stroke-width="${f(lineW)}" stroke-linejoin="round" stroke-linecap="butt"/>` +
-    `</g></svg>`
+    `</g>` + (p.typoVisible === 0 ? "" : typoSvg(x0, y0, bw, bh, radius)) + `</svg>`
   );
 }
 
@@ -145,22 +125,14 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
   const H = p.h ?? p.size;
   if (p.animated === false) return renderXyzStatic(p, W, H);
   // 基準（最大）ジオメトリ。draw2 の式（generator3 HTML:790-818）を最大サイズで評価。
-  const bw = W * WMAX;
-  const bh = H * HMAX;
+  const { width: bw, height: bh } = xyzFrameSize(W, H, 0.7, p);
   const m = Math.min(bw, bh);
   const c = m * p.ch;
+  const radius = m * xyzRoundRatio(p.round);
   const x0 = W / 2 - bw / 2;
   const y0 = H / 2 - bh / 2;
 
-  const pts: [number, number][] = [
-    [x0 + c, y0],
-    [x0 + bw, y0],
-    [x0 + bw, y0 + bh - c],
-    [x0 + bw - c, y0 + bh],
-    [x0, y0 + bh],
-    [x0, y0 + c],
-  ];
-  const points = pts.map(([x, y]) => `${f(x)},${f(y)}`).join(" ");
+  const shape = xyzShapePath(x0, y0, bw, bh, c, radius);
 
   // 交点 J: 右下チャンファー起点から左上へ（pos で位置指定）
   const dmax = Math.min(bw, bh) - c * 1.4;
@@ -188,12 +160,9 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
   const cx = W / 2;
   const cy = H / 2;
   let frames = "";
-  for (let i = 0; i < KF_STOPS; i++) {
+  for (let i = 0; p.frameAnimation !== 0 && i < KF_STOPS; i++) {
     const ph = i / (KF_STOPS - 1);
-    const hGrow = seqHold(ph, 0.06, 0.34, 0.72, 0.94, EASE_H);
-    const wGrow = seqHold(ph, 0.42, 0.7, 0.72, 0.94, EASE_W);
-    const wv = lerp(0.22, WMAX, wGrow);
-    const hv = lerp(0.21, HMAX, hGrow);
+    const { width: wv, height: hv } = xyzFrameSize(1, 1, ph, p);
     const sx = (wv / WMAX).toFixed(4);
     const sy = (hv / HMAX).toFixed(4);
     const pct = ((ph * 100).toFixed(2) + "%").replace(".00%", "%");
@@ -205,18 +174,19 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
 
   const bgRect =
     p.bg && !p.transparent ? `<rect width="${W}" height="${H}" fill="${p.bg}"/>` : "";
+  const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh, c, radius, 0, p.loopDur) : undefined;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     bgRect +
-    `<style>${style}</style>` +
-    `<defs><clipPath id="xyz-clip"><polygon points="${points}"/></clipPath>${gradDef}</defs>` +
-    `<g data-eid="xyz-box" class="xyz-anim">` +
-    `<polygon data-eid="xyz-fill" points="${points}" fill="${fillAttr}"/>` +
+    (p.frameAnimation === 0 ? "" : `<style>${style}</style>`) +
+    `<defs><clipPath id="xyz-clip"><path d="${shape}"/></clipPath>${mesh?.defs ?? gradDef}</defs>` +
+    `<g data-eid="xyz-box"${p.frameAnimation === 0 ? "" : ' class="xyz-anim"'}>` +
+    (mesh?.body ?? `<path data-eid="xyz-fill" d="${shape}" fill="${fillAttr}"/>`) +
     `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
     // vector-effect: 箱の scale アニメで線幅が変わらない（非等方scaleでの太さ歪みを防ぐ）
-    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${pal.line}" ` +
+    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}" ` +
     `stroke-width="${f(lineW)}" vector-effect="non-scaling-stroke" ` +
     `stroke-linejoin="round" stroke-linecap="butt"/>` +
-    `</g></g></svg>`
+    `</g>` + (p.typoVisible === 0 ? "" : typoSvg(x0, y0, bw, bh, radius)) + `</g></svg>`
   );
 }

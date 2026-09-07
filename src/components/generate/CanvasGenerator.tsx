@@ -56,19 +56,23 @@ export default function CanvasGenerator({
 function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenInitial }) {
   const content = MULTI_CONTENTS[slug];
 
-  const initialMode =
-    typeof initial?.params?.mode === "string"
-      ? (initial.params.mode as string)
-      : content.modes[0].value;
+  // 保存済みの mode が現存しない（削除されたモード等）場合は先頭モードへ正規化する。
+  // 正規化せずに mode state へ残すと、書き出しファイル名や再保存に旧モード名が混入する。
+  const savedMode = typeof initial?.params?.mode === "string" ? initial.params.mode : null;
+  const baseMode = content.modes.find((m) => m.value === savedMode) ?? content.modes[0];
+  const initialMode = baseMode.value;
 
   const [mode, setMode] = useState(initialMode);
   const active = content.modes.find((m) => m.value === mode) ?? content.modes[0];
 
   const [params, setParams] = useState<Params>(() => {
-    const base = content.modes.find((m) => m.value === initialMode) ?? content.modes[0];
     const init: Params = initial?.params ? { ...initial.params } : {};
     delete (init as Record<string, unknown>).mode;
-    return { ...base.defaults, ...init };
+    // 正規化が起きたときだけ、旧モードの残骸キーを捨てる（通常のレコードは素通し）
+    if (savedMode !== null && savedMode !== initialMode) {
+      for (const k of Object.keys(init)) if (!(k in baseMode.defaults)) delete init[k];
+    }
+    return { ...baseMode.defaults, ...init };
   });
   const [name, setName] = useState(initial?.name ?? content.title);
   const [genId, setGenId] = useState<string | null>(initial?.id ?? null);
@@ -173,7 +177,8 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
         id: genId,
         slug,
         name: name.trim() || content.title,
-        params: { mode, ...params },
+        // mode は最後に置く（同名パラメータがあってもモード名が消えないように）
+        params: { ...params, mode },
       });
       setGenId(id);
       setSaved(true);
@@ -452,9 +457,8 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
           </div>
 
           <p className="gen-note">
-            再生バーで位置を合わせて停止すると、その瞬間が SVG / PNG に書き出されます。SVG は
-            XYZ / HEX HALO / LIQUID GLASS が編集可能なベクター（各図形）、3Dモード（DATA CUBE /
-            GRID CUBE）は現在フレームを埋め込んだ静止画です。
+            再生バーで位置を合わせて停止すると、その瞬間が SVG / PNG に書き出されます。SVG
+            は図形を編集できます。メッシュは4色のグラデーションとマスクで再現しています。
           </p>
         </aside>
       </div>

@@ -27,7 +27,8 @@ export default function ControlsPanel({
 }) {
   return (
     <>
-      {spec.map(([title, controls]) => (
+      {spec.map(([title, controls, visibleWhen]) => (
+        visibleWhen && params[visibleWhen.key] !== visibleWhen.equals ? null :
         <div key={title} className="gen-section">
           <div className="gen-section-title">
             <h2>{title}</h2>
@@ -49,6 +50,7 @@ export default function ControlsPanel({
                   </output>
                   <input
                     type="range"
+                    aria-label={label}
                     min={min}
                     max={max}
                     step={step}
@@ -69,6 +71,7 @@ export default function ControlsPanel({
                     <i style={{ background: color }} />
                     <input
                       type="color"
+                      aria-label={label}
                       value={color}
                       onChange={(e) => onChange({ [key]: e.target.value })}
                     />
@@ -99,6 +102,7 @@ export default function ControlsPanel({
                   <label className="gen-switch">
                     <input
                       type="checkbox"
+                      aria-label={label}
                       checked={!!val}
                       onChange={(e) => onChange({ [key]: e.target.checked ? 1 : 0 })}
                     />
