@@ -1,5 +1,6 @@
 import type { ControlsSpec, Params } from "./types";
 import { blurCanvas, hasFilter, poly } from "./engine";
+import { influenceRanges, influencePixels, influenceSvg, INFLUENCE_GRID } from "./meshInfluence";
 
 // Four drifting color points. Canvas and SVG share the same gradient axes and
 // periodic paths so seeking, video and still exports agree. No bitmap needed.
@@ -16,6 +17,10 @@ export interface MeshGradientParams {
   meshBlur: number;
   meshBase: string;
   meshMotion: number;
+  meshTopLeftRange: number;
+  meshTopRightRange: number;
+  meshBottomLeftRange: number;
+  meshBottomRightRange: number;
 }
 
 export const MESH_DEFAULTS: MeshGradientParams = {
@@ -31,6 +36,10 @@ export const MESH_DEFAULTS: MeshGradientParams = {
   meshBlur: 0.045,
   meshBase: "#eaeff4",
   meshMotion: 0.2,
+  meshTopLeftRange: 100,
+  meshTopRightRange: 100,
+  meshBottomLeftRange: 100,
+  meshBottomRightRange: 100,
 };
 
 export const MESH_CONTROLS: ControlsSpec = [
@@ -41,6 +50,12 @@ export const MESH_CONTROLS: ControlsSpec = [
     ["meshBottomRight", "右下", "k"],
     ["meshInsetX", "ポイントの内側距離 X", "r", 0, 0.4, 0.01, ""],
     ["meshInsetY", "ポイントの内側距離 Y", "r", 0, 0.4, 0.01, ""],
+  ]],
+  ["影響範囲 / INFLUENCE", [
+    ["meshTopLeftRange", "左上の影響範囲", "r", 20, 200, 1, "%"],
+    ["meshTopRightRange", "右上の影響範囲", "r", 20, 200, 1, "%"],
+    ["meshBottomLeftRange", "左下の影響範囲", "r", 20, 200, 1, "%"],
+    ["meshBottomRightRange", "右下の影響範囲", "r", 20, 200, 1, "%"],
   ]],
   ["動き / MOTION", [
     ["meshMotion", "ポイントの移動量", "r", 0, 0.35, 0.01, ""],
@@ -63,10 +78,10 @@ export function meshParams(params: Params): MeshGradientParams {
     return typeof value === "string" && /^#[\da-f]{6}$/i.test(value)
       ? value : String(MESH_DEFAULTS[key]);
   };
-  const number = (key: keyof MeshGradientParams, max: number) => {
+  const number = (key: keyof MeshGradientParams, max: number, min = 0) => {
     const value = params[key];
     return typeof value === "number" && Number.isFinite(value)
-      ? Math.max(0, Math.min(max, value)) : Number(MESH_DEFAULTS[key]);
+      ? Math.max(min, Math.min(max, value)) : Number(MESH_DEFAULTS[key]);
   };
   return {
     meshTopLeft: color("meshTopLeft"), meshTopRight: color("meshTopRight"),
@@ -76,6 +91,10 @@ export function meshParams(params: Params): MeshGradientParams {
     meshPadding: number("meshPadding", 0.22), meshBlur: number("meshBlur", 0.15),
     meshBase: color("meshBase"),
     meshMotion: number("meshMotion", 0.35),
+    meshTopLeftRange: number("meshTopLeftRange", 200, 20),
+    meshTopRightRange: number("meshTopRightRange", 200, 20),
+    meshBottomLeftRange: number("meshBottomLeftRange", 200, 20),
+    meshBottomRightRange: number("meshBottomRightRange", 200, 20),
   };
 }
 
@@ -117,6 +136,7 @@ function insetContour(w: number, h: number, chamfer: number, padding: number) {
 export function createMeshPainter() {
   let tile: HTMLCanvasElement | undefined;
   let mask: HTMLCanvasElement | undefined;
+  let field: HTMLCanvasElement | undefined;
   let lastKey = "";
   let lastMaskKey = "";
   return (ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, p: MeshGradientParams, chamfer: number, phase: number) => {
@@ -126,9 +146,10 @@ export function createMeshPainter() {
     const min = Math.min(tw, th);
     const cut = min * chamfer / Math.min(w, h);
     const axes = meshAxes(p, phase);
+    const ranges = influenceRanges(p);
     const maskKey = [p.meshPadding, p.meshBlur, tw, th, cut.toFixed(5)].join("|");
     const key = [p.meshTopLeft, p.meshTopRight, p.meshBottomLeft, p.meshBottomRight,
-      p.meshBase, maskKey, ...axes.flat(2)].join("|");
+      p.meshBase, maskKey, ...ranges, ...axes.flat(2)].join("|");
     if (!tile || key !== lastKey) {
       // Bound the cached texture size for video, rebuilding only when the field
       // or its contour changes. Padding/blur use the short side, not each axis.
@@ -151,6 +172,17 @@ export function createMeshPainter() {
       c.globalCompositeOperation = "destination-over";
       c.fillStyle = gradient(axes[0], p.meshTopLeft, p.meshTopRight);
       c.fillRect(0, 0, tw, th);
+
+      if (ranges.some(r => r !== 100)) {
+        field ??= document.createElement("canvas");
+        field.width = field.height = INFLUENCE_GRID + 1;
+        field.getContext("2d")!.putImageData(new ImageData(
+          influencePixels(p, axes, tw, th), INFLUENCE_GRID + 1, INFLUENCE_GRID + 1), 0, 0);
+        c.globalCompositeOperation = "copy";
+        // Align pixel centers with the SVG grid vertices (including both edges).
+        c.drawImage(field, -tw / (2 * INFLUENCE_GRID), -th / (2 * INFLUENCE_GRID),
+          tw * (1 + 1 / INFLUENCE_GRID), th * (1 + 1 / INFLUENCE_GRID));
+      }
 
       // Color motion does not invalidate the more expensive blurred contour.
       if (!mask || maskKey !== lastMaskKey) {
@@ -185,6 +217,8 @@ export function meshSvg(p: MeshGradientParams, x: number, y: number, w: number, 
     .map(([px, py]) => `${x + px},${y + py}`).join(" ");
   const coords = (axis: Point[]) => [x + axis[0][0] * w, y + axis[0][1] * h, x + axis[1][0] * w, y + axis[1][1] * h];
   const axes = meshAxes(p, phase);
+  const field = influenceRanges(p).some(r => r !== 100)
+    ? influenceSvg(p, ph => meshAxes(p, ph), x, y, w, h, phase, animatedSeconds) : undefined;
   const samples = animatedSeconds && p.meshMotion > 0
     ? Array.from({ length: 49 }, (_, i) => meshAxes(p, phase + i / 48).map(coords)) : [];
   const gradient = (id: string, index: number, stops: string) => {
@@ -196,7 +230,7 @@ export function meshSvg(p: MeshGradientParams, x: number, y: number, w: number, 
   };
   const stops = (left: string, right: string) => `<stop stop-color="${left}"/><stop offset="1" stop-color="${right}"/>`;
   return {
-    defs: gradient("xyz-mesh-top", 0, stops(p.meshTopLeft, p.meshTopRight)) +
+    defs: (field?.defs ?? "") + gradient("xyz-mesh-top", 0, stops(p.meshTopLeft, p.meshTopRight)) +
       gradient("xyz-mesh-bottom", 1, stops(p.meshBottomLeft, p.meshBottomRight)) +
       gradient("xyz-mesh-fade", 2, `<stop stop-color="white" stop-opacity="0"/><stop offset="1" stop-color="white"/>`) +
       `<mask id="xyz-mesh-mask" maskUnits="userSpaceOnUse" x="${x}" y="${y}" width="${w}" height="${h}" style="mask-type:alpha">` +
@@ -208,7 +242,7 @@ export function meshSvg(p: MeshGradientParams, x: number, y: number, w: number, 
     body: `<g data-eid="xyz-mesh" clip-path="url(#xyz-clip)">` +
       `<rect data-eid="xyz-mesh-base" x="${x}" y="${y}" width="${w}" height="${h}" fill="${p.meshBase}"/>` +
       `<g mask="url(#xyz-mesh-edge)">` +
-      `<rect data-eid="xyz-mesh-top" x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#xyz-mesh-top)"/>` +
-      `<rect data-eid="xyz-mesh-bottom" x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#xyz-mesh-bottom)" mask="url(#xyz-mesh-mask)"/></g></g>`,
+      (field?.body ?? (`<rect data-eid="xyz-mesh-top" x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#xyz-mesh-top)"/>` +
+      `<rect data-eid="xyz-mesh-bottom" x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#xyz-mesh-bottom)" mask="url(#xyz-mesh-mask)"/>`)) + `</g></g>`,
   };
 }
