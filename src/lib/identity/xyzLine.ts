@@ -121,7 +121,7 @@ function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
     `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
     `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}" ` +
     `stroke-width="${f(lineW)}" stroke-linejoin="round" stroke-linecap="butt"/>` +
-    `</g>` + (p.typoVisible === 0 ? "" : typoSvg(x0, y0, bw, bh, radius)) + `</svg>`
+    `</g>` + (p.typoVisible === 0 ? "" : typoSvg(x0, y0, bw, bh, radius, p.typoColor)) + `</svg>`
   );
 }
 
@@ -192,6 +192,6 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
     `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}" ` +
     `stroke-width="${f(lineW)}" vector-effect="non-scaling-stroke" ` +
     `stroke-linejoin="round" stroke-linecap="butt"/>` +
-    `</g>` + (p.typoVisible === 0 ? "" : typoSvg(x0, y0, bw, bh, radius)) + `</g></svg>`
+    `</g>` + (p.typoVisible === 0 ? "" : typoSvg(x0, y0, bw, bh, radius, p.typoColor)) + `</g></svg>`
   );
 }

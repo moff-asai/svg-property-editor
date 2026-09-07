@@ -1,8 +1,11 @@
+import { XYZ_TYPO_COLOR_DEFAULT } from "./xyzTypo";
+
 export interface XyzFrameParams {
   frameAnimation?: 0 | 1;
   frameWidth?: number;
   frameHeight?: number;
   typoVisible?: number;
+  typoColor?: string;
 }
 
 export const XYZ_FRAME_DEFAULTS = {
@@ -10,6 +13,7 @@ export const XYZ_FRAME_DEFAULTS = {
   frameWidth: 64,
   frameHeight: 64,
   typoVisible: 1,
+  typoColor: XYZ_TYPO_COLOR_DEFAULT,
 } as const;
 
 const clamp01 = (t: number) => Math.max(0, Math.min(1, t));

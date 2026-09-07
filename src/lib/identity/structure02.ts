@@ -74,7 +74,7 @@ function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number
   ctx.lineTo(jx - k, jy + k);
   ctx.stroke();
   ctx.restore();
-  if (P.typoVisible !== 0) drawTypo(ctx, x0, y0, bw, bh, radius);
+  if (P.typoVisible !== 0) drawTypo(ctx, x0, y0, bw, bh, radius, P.typoColor);
 }
 function createXyzMode(mesh = false): CanvasRenderer {
   const paintMesh = mesh ? createMeshPainter() : undefined;
@@ -102,6 +102,7 @@ function createXyzMode(mesh = false): CanvasRenderer {
         frameWidth: p.frameWidth,
         frameHeight: p.frameHeight,
         typoVisible: p.typoVisible,
+        typoColor: p.typoColor,
         mesh: mesh ? meshParams(params) : undefined,
       });
     },
@@ -126,7 +127,10 @@ const XYZ_PRESETS: Params[] = [
 ];
 const FRAME_CONTROLS: ControlsSpec = [
   ["枠 / FRAME", [["frameAnimation", "枠のサイズアニメーション", "c"]]],
-  ["タイポ / TYPOGRAPHY", [["typoVisible", "タイポを表示", "c"]]],
+  ["タイポ / TYPOGRAPHY", [
+    ["typoVisible", "タイポを表示", "c"],
+    ["typoColor", "タイポの色", "k"],
+  ]],
   ["固定サイズ / SIZE", [
     ["frameWidth", "幅", "r", 10, 90, 1, "%"],
     ["frameHeight", "高さ", "r", 10, 90, 1, "%"],
