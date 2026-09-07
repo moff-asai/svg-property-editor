@@ -17,6 +17,24 @@ export const XYZ_CHAMFER_MIN = 0.05;
 export const XYZ_CHAMFER_MAX = 0.4;
 export const XYZ_LINE_WIDTH_MIN = 0.3;
 export const XYZ_LINE_WIDTH_MAX = 5;
+export const XYZ_LINE_BLEND_DEFAULT = "source-over";
+export const XYZ_LINE_BLEND_MODES = [
+  ["source-over", "通常"],
+  ["soft-light", "ソフトライト"],
+  ["hard-light", "ハードライト"],
+  ["overlay", "オーバーレイ"],
+  ["multiply", "乗算"],
+  ["screen", "スクリーン"],
+  ["color-dodge", "覆い焼きカラー"],
+  ["color-burn", "焼き込みカラー"],
+  ["difference", "差の絶対値"],
+] as const;
+export type XyzLineBlendMode = (typeof XYZ_LINE_BLEND_MODES)[number][0];
+
+export function xyzLineBlendMode(value: string | undefined): XyzLineBlendMode {
+  return XYZ_LINE_BLEND_MODES.find(([mode]) => mode === value)?.[0]
+    ?? XYZ_LINE_BLEND_DEFAULT;
+}
 
 // PAL2 (generator3 HTML:777-782)
 export const XYZ_PAL: Record<XyzPal, { fill: string[]; line: string }> = {
@@ -32,6 +50,7 @@ export interface XyzLineParams extends XyzFrameParams {
   round?: number; // 右上・左下の角丸 0–.25
   pos: number; // 交点位置 0–1
   lw: number; // 線の太さ .3–5
+  lineBlendMode?: XyzLineBlendMode;
   loopDur: number; // ループ長(秒)
   size: number; // 正方 viewBox 一辺
   bg?: string; // 背景色（transparent 未指定時に背景 rect を出力）
@@ -50,6 +69,7 @@ export const XYZ_DEFAULTS: XyzLineParams = {
   round: XYZ_ROUND_DEFAULT,
   pos: 0.18,
   lw: 0.9,
+  lineBlendMode: XYZ_LINE_BLEND_DEFAULT,
   loopDur: 6,
   size: 1000,
 };
@@ -113,13 +133,16 @@ function renderXyzStatic(p: XyzLineParams, W: number, H: number): string {
   const bgRect =
     p.bg && !p.transparent ? `<rect width="${W}" height="${H}" fill="${p.bg}"/>` : "";
   const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh, c, radius, ph) : undefined;
+  const blendMode = xyzLineBlendMode(p.lineBlendMode);
+  const blendStyle = blendMode === XYZ_LINE_BLEND_DEFAULT
+    ? "" : ` style="mix-blend-mode:${blendMode}"`;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     bgRect +
     `<defs><clipPath id="xyz-clip"><path d="${shape}"/></clipPath>${mesh?.defs ?? gradDef}</defs>` +
     (mesh?.body ?? `<path data-eid="xyz-fill" d="${shape}" fill="${fillAttr}"/>`) +
     `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
-    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}" ` +
+    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}"${blendStyle} ` +
     `stroke-width="${f(lineW)}" stroke-linejoin="round" stroke-linecap="butt"/>` +
     `</g>` + (p.typoVisible === 0 ? "" : typoSvg(x0, y0, bw, bh, radius, p.typoColor)) + `</svg>`
   );
@@ -180,6 +203,9 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
   const bgRect =
     p.bg && !p.transparent ? `<rect width="${W}" height="${H}" fill="${p.bg}"/>` : "";
   const mesh = p.mesh ? meshSvg(p.mesh, x0, y0, bw, bh, c, radius, 0, p.loopDur) : undefined;
+  const blendMode = xyzLineBlendMode(p.lineBlendMode);
+  const blendStyle = blendMode === XYZ_LINE_BLEND_DEFAULT
+    ? "" : ` style="mix-blend-mode:${blendMode}"`;
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">` +
     bgRect +
@@ -189,7 +215,7 @@ export function renderXyzLineSvg(p: XyzLineParams): string {
     (mesh?.body ?? `<path data-eid="xyz-fill" d="${shape}" fill="${fillAttr}"/>`) +
     `<g data-eid="xyz-clip-g" clip-path="url(#xyz-clip)">` +
     // vector-effect: 箱の scale アニメで線幅が変わらない（非等方scaleでの太さ歪みを防ぐ）
-    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}" ` +
+    `<path data-eid="xyz-ray" d="${rayD}" fill="none" stroke="${p.mesh?.meshLine ?? pal.line}" stroke-opacity="${p.mesh?.meshLineOpacity ?? 1}"${blendStyle} ` +
     `stroke-width="${f(lineW)}" vector-effect="non-scaling-stroke" ` +
     `stroke-linejoin="round" stroke-linecap="butt"/>` +
     `</g>` + (p.typoVisible === 0 ? "" : typoSvg(x0, y0, bw, bh, radius, p.typoColor)) + `</g></svg>`

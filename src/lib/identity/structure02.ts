@@ -6,8 +6,11 @@ import {
   XYZ_CHAMFER_MIN,
   XYZ_LINE_WIDTH_MAX,
   XYZ_LINE_WIDTH_MIN,
+  XYZ_LINE_BLEND_DEFAULT,
+  XYZ_LINE_BLEND_MODES,
   XYZ_PAL,
   renderXyzLineSvg,
+  xyzLineBlendMode,
   type XyzPal,
 } from "./xyzLine";
 import { createMeshPainter, meshParams, MESH_CONTROLS, MESH_DEFAULTS } from "./meshGradient";
@@ -24,6 +27,7 @@ interface XyzModeParams extends XyzFrameParams {
   round?: number;
   pos: number;
   lw: number;
+  lineBlendMode?: string;
   transparent?: number; // 背景透過
 }
 function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number, params: Params,
@@ -61,6 +65,7 @@ function drawXyz(ctx: CanvasRenderingContext2D, W: number, H: number, ph: number
     jy = y0 + bh - d;
   ctx.strokeStyle = mesh?.meshLine ?? pal.line;
   ctx.globalAlpha = mesh?.meshLineOpacity ?? 1;
+  ctx.globalCompositeOperation = xyzLineBlendMode(P.lineBlendMode);
   ctx.lineWidth = Math.max(1.2, m * 0.012 * P.lw);
   ctx.lineJoin = "round";
   ctx.lineCap = "butt";
@@ -89,6 +94,7 @@ function createXyzMode(mesh = false): CanvasRenderer {
         round: p.round,
         pos: p.pos,
         lw: p.lw,
+        lineBlendMode: xyzLineBlendMode(p.lineBlendMode),
         loopDur: loopSeconds,
         size: 900,
         // canvas(EXPORT_W:H=1280:720=16:9) と同じ比で書き出し、停止フレームと一致させる
@@ -117,6 +123,7 @@ const XYZ_DEFAULTS: Params = {
   round: XYZ_ROUND_DEFAULT,
   pos: 0.18,
   lw: 0.9,
+  lineBlendMode: XYZ_LINE_BLEND_DEFAULT,
   transparent: 1,
 };
 const XYZ_PRESETS: Params[] = [
@@ -152,6 +159,7 @@ const XYZ_CONTROLS: ControlsSpec = [
       ["round", "右上・左下の角丸", "r", 0, 0.25, 0.005, ""],
       ["pos", "交点位置", "r", 0, 1, 0.01, ""],
       ["lw", "線の太さ", "r", XYZ_LINE_WIDTH_MIN, XYZ_LINE_WIDTH_MAX, 0.05, ""],
+      ["lineBlendMode", "線の重なり方", "o", XYZ_LINE_BLEND_MODES],
     ],
   ],
 ];
