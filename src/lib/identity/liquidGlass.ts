@@ -268,7 +268,7 @@ export const LIQUID_GLASS_DEFAULTS: LiquidGlassParams = {
   fieldScale: 1,
   dotAlpha: 0.65,
   dotSource: "solid",
-  dotColor: "#bbff00", // 最新saveの色（ライム）
+  dotColor: "#6a2bff", // 開いた時の既定色＝プリセット1（バイオレット）
   animA: 0,
   animB: 3,
   count: 1,
@@ -280,7 +280,7 @@ export const LIQUID_GLASS_DEFAULTS: LiquidGlassParams = {
   wordmark: 1,
   wmSize: 0.88,
   wmX: 0.65,
-  wmY: 0.5,
+  wmY: 0.515,
   transparent: 0,
   circles: [
     { col: "#4b3bf5", x: -0.09, y: -0.05, r: 0.4, a: 0.9, ring: 0.52, wob: 1.0 },
