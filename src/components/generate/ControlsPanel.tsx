@@ -120,6 +120,7 @@ export default function ControlsPanel({
                 <span>{label}</span>
                 <select
                   className="gen-select"
+                  aria-label={label}
                   value={String(val)}
                   onChange={(e) => onChange({ [key]: coerce(e.target.value) })}
                 >

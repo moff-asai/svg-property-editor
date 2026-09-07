@@ -1,7 +1,7 @@
 // dynamic-identity-generator2.html コンテンツ 05「HEX HALO」(内部 TAB 6, HexHalo
-// モジュール HTML:334-661) を移植。raster(canvas 2D)。当アプリの方針で glow(後光)は
-// 廃止し、既定は LIQUID GLASS と六角形・スケールを揃えた値に調整（他は原典と同一）。
+// モジュール HTML:334-661) を移植。ドットの分布とサイズで六角形を表現する。
 import { makeNoise, fillBg } from "./engine";
+import { polygonDistance, hexDotWeight, createHexInnerPlacement, type Point } from "./hexGeometry";
 import type { CanvasRenderer, ControlsSpec, Params } from "./types";
 
 export interface HexHaloParams {
@@ -22,6 +22,7 @@ export interface HexHaloParams {
   pattern: number; // 1|3|4
   zoom: number;
   hexConcave: number;
+  innerDotPattern?: number; // 1=サイズ変化（従来）, 2=内側のサイズを保ってフェード, 3=元の粒感＋六角形配置
   v0: number;
   v1: number;
   v2: number;
@@ -31,14 +32,11 @@ export interface HexHaloParams {
   transparent?: number; // 背景透過（1でclear）
 }
 
-// 既定は当セッションで SAVE 済みの状態を採用（glow/bloom=0, distortion 71 等）。
-// ただし六角形は LIQUID GLASS に合わせて: hexRot 30（正六角形の頂点上=ポインティ
-// トップ／傾き修正）、hexSize 0.13（穴を LG と同径に）、zoom 1.10（ハロー外径を
-// LG の halfH≈350 に一致）へ調整。glow は廃止。
+// 最新の HEX HALO 保存設定（2026-09-07 15:09 JST）。
 export const HEX_HALO_DEFAULTS: HexHaloParams = {
   spacing: 11,
   maxDot: 7.5,
-  hexSize: 0.13,
+  hexSize: 0.195,
   hexRot: 30,
   innerR: 150,
   outerR: 505,
@@ -51,8 +49,9 @@ export const HEX_HALO_DEFAULTS: HexHaloParams = {
   seed: 1234,
   bg: "#ffffff",
   pattern: 1,
-  zoom: 1.1,
+  zoom: 0.75,
   hexConcave: 0,
+  innerDotPattern: 1,
   transparent: 1,
   v0: 0,
   v1: 0,
@@ -77,7 +76,8 @@ export const HEX_HALO_CONTROLS: ControlsSpec = [
   [
     "中央の六角形 / CENTER",
     [
-      ["hexSize", "穴サイズ", "r", 0.13, 0.3, 0.005, ""],
+      ["innerDotPattern", "内側ドット", "o", [["1", "パターン1：サイズ変化"], ["2", "パターン2：出現・消失"], ["3", "パターン3：元の粒感・六角形配置"]]],
+      ["hexSize", "六角形サイズ", "r", 0.13, 0.3, 0.005, ""],
       ["hexRot", "回転", "r", 0, 60, 1, "°"],
       ["hexConcave", "辺の凹み", "r", 0, 0.4, 0.01, ""],
       ["v0", "頂点1 伸び（右）", "r", 0, 1, 0.02, ""],
@@ -110,7 +110,7 @@ export const HEX_HALO_CONTROLS: ControlsSpec = [
       ["pattern", "うねり", "o", [["1", "フロー"], ["3", "渦"], ["4", "収束"]]],
       ["distortion", "うねりの強さ", "r", 0, 132, 1, ""],
       ["depth", "立体感", "r", 0.4, 2, 0.05, ""],
-      ["fade", "穴まわりの透過", "r", 8, 90, 2, ""],
+      ["fade", "六角形まわりのなじみ", "r", 8, 90, 2, ""],
       ["bloom", "ブルーム", "r", 0, 40, 1, ""],
     ],
   ],
@@ -136,7 +136,7 @@ const THEMES: Record<string, { h0: number; h1: number; sat: number }> = {
 };
 const SECTOR = Math.PI / 3;
 const TAU = Math.PI * 2;
-const HEX_CR = 1.1547005;
+const HEX_CR = 2 / Math.sqrt(3);
 const sm = (x: number) => {
   x = x < 0 ? 0 : x > 1 ? 1 : x;
   return x * x * (3 - 2 * x);
@@ -229,10 +229,29 @@ export function createHexHalo(): CanvasRenderer {
     const dd = psi - k1 * SECTOR;
     const r1 = HEX_CR * (1 + vExt(k1));
     const r2 = HEX_CR * (1 + vExt(k2));
-    let rb = (r1 * r2 * 0.8660254) / (r2 * Math.sin(SECTOR - dd) + r1 * Math.sin(dd));
+    let rb = (r1 * r2 * Math.sin(SECTOR)) / (r2 * Math.sin(SECTOR - dd) + r1 * Math.sin(dd));
     const cc = P.hexConcave;
     if (cc > 0) rb *= 1 - cc * Math.sin(3 * dd);
     return r / rb;
+  }
+
+  let boundaryKey = "";
+  let boundaryDistance = polygonDistance([]);
+  function syncBoundary() {
+    const key = [P.hexSize, P.hexRot, P.hexConcave, ...Array.from({ length: 6 }, (_, i) => vExt(i))].join("|");
+    if (key === boundaryKey) return;
+    boundaryKey = key;
+    const rot = P.hexRot * Math.PI / 180;
+    const steps = P.hexConcave > 0 ? 24 : 1;
+    const vertices: Point[] = [];
+    for (let i = 0; i < 6 * steps; i++) {
+      const angle = rot + i * SECTOR / steps;
+      const x = Math.cos(angle);
+      const y = Math.sin(angle);
+      const radius = P.hexSize * BASE / hexDist(x, y, rot);
+      vertices.push({ x: x * radius, y: y * radius });
+    }
+    boundaryDistance = polygonDistance(vertices);
   }
 
   function hslFor(hue: number, sat: number, li: number) {
@@ -269,12 +288,14 @@ export function createHexHalo(): CanvasRenderer {
     const amp = P.distortion;
     const f = 0.0016,
       cf = 0.0011;
-    const fadePx = P.fade,
+    const fadePx = Math.max(P.fade, P.spacing * 2.5),
       outerFade = 70;
+    const originalBandIn = Math.max(hexR * 1.02, P.innerR);
+    const placeInner = createHexInnerPlacement(hexR * HEX_CR, rot, originalBandIn,
+      angle => hexR / hexDist(Math.cos(angle), Math.sin(angle), rot));
+    const fullInnerDots = P.innerDotPattern === 2;
     const drift = t * 0.03;
     const outerR = P.outerR;
-    const bandIn = Math.max(hexR * 1.02, P.innerR);
-    const bandSpan = Math.max(40, outerR - bandIn);
     const tc = t * 0.35;
     const tips: { x: number; y: number; rad: number; push: number; wob: number }[] = [];
     for (let vk = 0; vk < 6; vk++) {
@@ -342,17 +363,26 @@ export function createHexHalo(): CanvasRenderer {
         const rx = x - CX,
           ry = y - CY;
         const dist = Math.sqrt(rx * rx + ry * ry);
-        const hd = hexDist(rx, ry, rot);
-        if (hd <= hexR) continue;
-        const innerK = sm((hd - hexR) / fadePx);
+        const edgeDistance = boundaryDistance(rx, ry);
+        const innerK = P.innerDotPattern === 3
+          ? sm((dist - originalBandIn) / P.fade)
+          : hexDotWeight(edgeDistance, fadePx);
         const outerK = sm((outerR - dist) / outerFade);
-        if (innerK <= 0.01 || outerK <= 0.01) continue;
+        if (innerK <= (fullInnerDots ? 0.001 : 0.01) || outerK <= 0.01) continue;
+        // Follow all six sides with the size envelope too; a circular inner
+        // radius otherwise hides the corners even with an accurate distance.
+        const bandIn = P.innerDotPattern === 3 ? originalBandIn : Math.max(P.innerR, dist - edgeDistance - fadePx * 0.8);
+        const bandSpan = Math.max(40, outerR - bandIn);
         let band = (dist - bandIn) / bandSpan;
         band = band < 0 ? 0 : band > 1 ? 1 : band;
-        let sfac = Math.pow(Math.sin(Math.PI * band), P.depth);
+        // Pattern 2 keeps the inner half of the ring at full size; only its
+        // opacity follows the hexagon. The outer size falloff stays intact.
+        const sizeBand = fullInnerDots ? Math.max(0.5, band) : band;
+        let sfac = Math.pow(Math.sin(Math.PI * sizeBand), P.depth);
         const n3 = noise(bx * f * 1.9 + 310, by * f * 1.9 + 310, t * 0.5);
         sfac *= 0.6 + 0.4 * (n3 * 0.5 + 0.5);
-        sfac *= 0.35 + 0.65 * innerK;
+        // 元のサイズ補正を維持し、境界では透明度で自然に出現させる。
+        if (!fullInnerDots) sfac *= 0.35 + 0.65 * innerK;
         const size = P.maxDot * sfac;
         if (size < 0.4) continue;
         const alpha = seamA * innerK * outerK * (0.82 + 0.18 * (n1 * 0.5 + 0.5));
@@ -362,7 +392,8 @@ export function createHexHalo(): CanvasRenderer {
         const hue = th.h0 + (th.h1 - th.h0) * hueT;
         let li = 48 + 16 * (1 - sfac);
         if (P.bg !== "#ffffff") li += 10;
-        plot(x, y, size, hue, th.sat, li, alpha);
+        const position = P.innerDotPattern === 3 ? placeInner(rx, ry) : { x: rx, y: ry };
+        plot(P.innerDotPattern === 3 ? CX + position.x : x, P.innerDotPattern === 3 ? CY + position.y : y, size, hue, th.sat, li, alpha);
       }
     }
   }
@@ -419,8 +450,10 @@ export function createHexHalo(): CanvasRenderer {
 
   function draw(c: CanvasRenderingContext2D, W: number, H: number, ph: number, params: Params) {
     Object.assign(P, params);
+    P.innerDotPattern = params.innerDotPattern === 3 ? 3 : params.innerDotPattern === 2 ? 2 : 1;
     syncNoise();
     syncDots();
+    syncBoundary();
     const t = 5 + ph * 8 * P.flowSpeed;
     const S = Math.min(W, H);
     if (cachedS !== S || !cachedView || !cachedOff) {
@@ -443,8 +476,10 @@ export function createHexHalo(): CanvasRenderer {
   // イラレ編集可能なベクターSVG（各ドットを <circle> で出力）。glow/bloom は raster のため省略。
   function toSvg({ phase, params }: { phase: number; loopSeconds: number; params: Params }): string {
     Object.assign(P, params);
+    P.innerDotPattern = params.innerDotPattern === 3 ? 3 : params.innerDotPattern === 2 ? 2 : 1;
     syncNoise();
     syncDots();
+    syncBoundary();
     const t = 5 + phase * 8 * P.flowSpeed;
     const z = P.zoom;
     const circles: string[] = [];
