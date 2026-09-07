@@ -6,7 +6,6 @@ import {
   XYZ_CHAMFER_MIN,
   XYZ_LINE_WIDTH_MAX,
   XYZ_LINE_WIDTH_MIN,
-  XYZ_LINE_BLEND_DEFAULT,
   XYZ_LINE_BLEND_MODES,
   XYZ_PAL,
   renderXyzLineSvg,
@@ -15,7 +14,7 @@ import {
 } from "./xyzLine";
 import { createMeshPainter, meshParams, MESH_CONTROLS, MESH_DEFAULTS } from "./meshGradient";
 import { xyzFrameSize, XYZ_FRAME_DEFAULTS, type XyzFrameParams } from "./xyzFrame";
-import { traceXyzShape, xyzRoundRatio, XYZ_ROUND_DEFAULT } from "./xyzShape";
+import { traceXyzShape, xyzRoundRatio } from "./xyzShape";
 import { drawTypo } from "./xyzTypo";
 import type { CanvasRenderer, ControlsSpec, MultiModeContent, Params } from "./types";
 
@@ -117,13 +116,17 @@ function createXyzMode(mesh = false): CanvasRenderer {
 
 const XYZ_DEFAULTS: Params = {
   ...XYZ_FRAME_DEFAULTS,
+  frameAnimation: 0,
+  frameWidth: 55,
+  frameHeight: 40,
+  typoVisible: 1,
   bg: "#ffffff",
   pal: "purple",
-  ch: 0.13,
-  round: XYZ_ROUND_DEFAULT,
-  pos: 0.18,
-  lw: 0.9,
-  lineBlendMode: XYZ_LINE_BLEND_DEFAULT,
+  ch: 0.33,
+  round: 0,
+  pos: 0.45,
+  lw: 4.7,
+  lineBlendMode: "soft-light",
   transparent: 1,
 };
 const XYZ_PRESETS: Params[] = [
@@ -135,10 +138,6 @@ const XYZ_PRESETS: Params[] = [
 const XYZ_MESH_DEFAULTS: Params = {
   ...XYZ_DEFAULTS,
   ...MESH_DEFAULTS,
-  frameAnimation: 0,
-  frameWidth: 55,
-  frameHeight: 40,
-  typoVisible: 1,
   meshInsetX: 0.03,
   meshInsetY: 0.1,
   meshTopLeftRange: 129,
@@ -150,12 +149,6 @@ const XYZ_MESH_DEFAULTS: Params = {
   meshPadding: 0.02,
   meshBlur: 0.05,
   meshLineOpacity: 0.5,
-  transparent: 1,
-  ch: 0.33,
-  round: 0,
-  pos: 0.45,
-  lw: 4.7,
-  lineBlendMode: "soft-light",
 };
 const FRAME_CONTROLS: ControlsSpec = [
   ["枠 / FRAME", [["frameAnimation", "枠のサイズアニメーション", "c"]]],
