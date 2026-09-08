@@ -20,7 +20,7 @@ const TYPO_PATHS = [
 const TYPO_WIDTH = 314.89;
 const TYPO_HEIGHT = 121.13;
 const TYPO_SUPERSAMPLE = 4;
-export const XYZ_TYPO_COLOR_DEFAULT = "#202322";
+export const XYZ_TYPO_COLOR_DEFAULT = "#ffffff";
 
 export function xyzTypoColor(value: string | undefined) {
   return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)
