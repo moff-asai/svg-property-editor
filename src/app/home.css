@@ -170,3 +170,6 @@ a.home-card:hover .home-card-cta { color: var(--accent); }
 .auth-input:focus { outline: none; border-color: rgba(241, 242, 233, 0.4); }
 .auth-error { margin: 0; border: 1px solid rgba(255, 107, 94, 0.4); color: var(--danger); font-size: 9px; letter-spacing: 0.04em; padding: 9px 11px; line-height: 1.6; }
 .auth-submit, .auth-alt { justify-content: center; margin-top: 2px; padding: 11px 16px; }
+.auth-divider { display: flex; align-items: center; gap: 12px; margin: 18px 0 14px; color: var(--muted); font-size: 8px; letter-spacing: 0.14em; }
+.auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.auth-google { width: 100%; justify-content: center; padding: 11px 16px; }

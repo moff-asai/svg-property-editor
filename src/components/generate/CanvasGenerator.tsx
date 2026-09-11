@@ -78,7 +78,10 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
   const [genId, setGenId] = useState<string | null>(initial?.id ?? null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [playing, setPlaying] = useState(true);
+  // アクセシビリティ: 「視差効果を減らす」設定では自動再生しない（手動再生は可）。
+  const [playing, setPlaying] = useState(
+    () => typeof window === "undefined" || !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
   const [loopSeconds, setLoopSeconds] = useState(12);
   const [fps, setFps] = useState(60);
   const [bitrateMbps, setBitrateMbps] = useState(40);
@@ -109,6 +112,13 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    // 高解像度表示: プレビューの実ピクセルを devicePixelRatio 倍で描画（上限2倍）。
+    // 書き出し（PNG/MP4/SVG）は専用キャンバスを使うため解像度は従来どおり。
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (dpr !== 1) {
+      canvas.width = Math.round(EXPORT_W * dpr);
+      canvas.height = Math.round(EXPORT_H * dpr);
+    }
     let raf = 0;
     let last = performance.now();
     const tick = (now: number) => {
@@ -257,14 +267,29 @@ function CanvasGeneratorInner({ slug, initial }: { slug: string; initial?: GenIn
     <div className="gen">
       {/* ---------- topbar ---------- */}
       <div className="gen-topbar">
-        <Link href="/generate" className="gen-brand" title="テンプレ一覧へ戻る">
-          <span className="gen-brand-mark">
-            <i />
-            <i />
-            <i />
-          </span>
-          TEMPLATE
-        </Link>
+        <div className="gen-nav">
+          <Link href="/generate" className="gen-brand" title="テンプレ一覧へ戻る">
+            <span className="gen-brand-mark">
+              <i />
+              <i />
+              <i />
+            </span>
+            TEMPLATE
+          </Link>
+          <Link href="/" className="gen-tbtn" title="ホームに戻る">
+            <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden>
+              <path
+                d="M3 11.5 12 4l9 7.5M5.5 10v9h13v-9"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+                strokeLinecap="round"
+              />
+            </svg>
+            ホーム
+          </Link>
+        </div>
 
         <div className="gen-project-meta">
           <span className="gen-title">

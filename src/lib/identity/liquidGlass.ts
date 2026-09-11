@@ -54,6 +54,8 @@ export interface LiquidGlassParams {
   dotColor: string;
   animA: number;
   animB: number;
+  motion: number; // 1=標準, 2=陰影の吸い込み, 3=粒子渦（帯に沿って環流）, 4=粒子渦＋全体回転
+  inflow: number; // 吸い込みの強さ（motion=2 のとき有効）
   count: number;
   blend: string;
   wobble: number;
@@ -121,33 +123,55 @@ interface Dot {
   i: number;
   ang: number;
   sr: number;
+  shade: number; // 吸い込みの陰影（不透明度係数、標準は1）
 }
+
 function dotField(P: LiquidGlassParams, ph: number): Dot[] {
   const count = Math.max(17, Math.round(P.density));
   const r = mulberry32(P.seed);
-  const phaseA = r() * TAU + TAU * ph * P.animA;
-  const phaseB = r() * TAU - TAU * ph * P.animB;
+  // 粒子渦(motion=3/4): 静止した「うねる帯」に沿って同じ粒子が環流し続ける。
+  // 帯の形が時間で変わると粒子の明暗が揺れて出現/消滅に見えるため、位相は固定する。
+  // motion=4 は同じ構造のまま全体を剛体回転させる版（1ループで1回転＝継ぎ目なし）。
+  const vortex = P.motion === 3 || P.motion === 4;
+  const phaseA = r() * TAU + TAU * (vortex ? 0 : ph) * P.animA;
+  const phaseB = r() * TAU - TAU * (vortex ? 0 : ph) * P.animB;
   const spacing = 2.06 / (count - 1);
-  const rotation = P.fieldRot * RAD;
+  const rotation = P.fieldRot * RAD + (P.motion === 4 ? TAU * ph : 0);
   const out: Dot[] = [];
   const thr = P.threshold;
+  // 角度 a における帯の中心半径（うねり込み・時間不変）
+  const bandR = (a: number) => {
+    const dist =
+      0.64 * Math.sin(P.frequency * a + phaseA) +
+      0.24 * Math.sin(2 * a - phaseB) +
+      0.12 * Math.sin(7 * a + phaseB);
+    const rough =
+      P.turbulence * 0.045 * (0.65 * Math.sin(3 * a + phaseB) + 0.35 * Math.sin(9 * a - phaseA));
+    return clamp(P.ringR + P.wave * 0.15 * dist + rough, 0.12, 0.95);
+  };
+  // 粒子渦の周回数（整数＝ループ継ぎ目なし）。「渦の周回数(animB)」を流速に使う。
+  const turns = Math.max(1, Math.round(P.animB));
   for (let row = 0; row < count; row++)
     for (let col = 0; col < count; col++) {
       const gx = -1.03 + col * spacing,
         gy = -1.03 + row * spacing;
-      const sr = Math.hypot(gx, gy),
+      let sr = Math.hypot(gx, gy),
         sa = Math.atan2(gy, gx);
-      const dist =
-        0.64 * Math.sin(P.frequency * sa + phaseA) +
-        0.24 * Math.sin(2 * sa - phaseB) +
-        0.12 * Math.sin(7 * sa + phaseB);
-      const rough = P.turbulence * 0.045 * (0.65 * Math.sin(3 * sa + phaseB) + 0.35 * Math.sin(9 * sa - phaseA));
-      const ringR = clamp(P.ringR + P.wave * 0.15 * dist + rough, 0.12, 0.95);
+      // 明るさの揺らぎは粒子固有（出生角で固定）— 環流中に明滅しない。
+      const light = 0.9 + 0.1 * Math.sin(sa * 2 - phaseA);
+      if (vortex) {
+        // 各粒子は「帯中心からの相対距離 delta」を保ったまま、うねる帯に沿った
+        // 閉軌道を周回する。強度は delta で決まり一定＝消える・湧くが起きない。
+        // ph=0 の配置・明るさは標準と完全に同一（標準の質感のまま流れる）。
+        const delta = sr - bandR(sa);
+        sa += TAU * turns * ph;
+        sr = Math.max(0, bandR(sa) + delta);
+      }
+      const ringR = bandR(sa);
       const dc = Math.abs(sr - ringR);
       const dOut = Math.max(0, dc - P.thickness / 2);
       const sig = Math.max(0.012, P.fieldBlur);
       const blurred = Math.exp(-0.5 * Math.pow(dOut / sig, 2));
-      const light = 0.9 + 0.1 * Math.sin(sa * 2 - phaseA);
       const val = clamp(blurred * light, 0, 1);
       const th = smoothstep(thr, Math.min(1, thr + 0.72), val);
       const inten = Math.pow(th, 0.58 + P.contrast * 0.78);
@@ -165,7 +189,17 @@ function dotField(P: LiquidGlassParams, ph: number): Dot[] {
       y += P.turbulence * 0.028 * Math.sin(x * 7 - phaseB);
       const rx0 = x * Math.cos(rotation) - y * Math.sin(rotation);
       const ry0 = x * Math.sin(rotation) + y * Math.cos(rotation);
-      out.push({ x: rx0, y: ry0, i: inten, ang: wa + Math.PI / 2 + rotation, sr });
+      // 吸い込み: 位置・サイズ（＝形）は一切変えず、陰影だけで表現する。
+      // 基準の明るさは標準と同一（どのフレームで止めても標準と同じ形・色）。
+      // ハイライトの波は半径(sr)＋角度(sa)を混ぜた螺旋状で、渦の腕に沿って
+      // 中心へ伝播（1ループ整数周期＝継ぎ目なし）。振幅を濃さ(inten)で重み付け
+      // するため、濃い部分だけが腕づたいに吸い込まれて見え、薄い縁は静止する。
+      let shade = 1;
+      if (P.motion === 2 && P.inflow > 0) {
+        const wavePhase = 0.5 + 0.5 * Math.sin(TAU * 2 * ph + sr * 8 + 3 * sa);
+        shade = 1 + 0.7 * P.inflow * wavePhase * inten;
+      }
+      out.push({ x: rx0, y: ry0, i: inten, ang: wa + Math.PI / 2 + rotation, sr, shade });
     }
   return out;
 }
@@ -217,6 +251,7 @@ function drawC3(
         py = H / 2 + dt.y * u;
       if (px < -20 || px > W + 20 || py < -20 || py > H + 20) continue;
       // 中央六角形は、穴に近いドットほど面積をなめらかに減衰（サイズ変化）させて表現。
+      // 粒子渦(motion=3/4)でも同じ画面固定マスク＝軌道（動き）には影響しない。
       const weight = P.hexMask ? hexDotWeight(hexDistance(px - W / 2, py - H / 2), rimWidth) : 1;
       const rx = cellPx * 0.5 * P.dotScale * (0.35 + 0.75 * Math.sqrt(dt.i)) * Math.sqrt(weight);
       const ry = rx * P.dotAspect;
@@ -230,7 +265,7 @@ function drawC3(
         sa = d[k + 3] / 255;
         col = sa > 0.06 ? [d[k], d[k + 1], d[k + 2]] : base;
       }
-      const a = clamp(dt.i * P.dotAlpha * (P.dotSource === "blob" ? 0.25 + 0.75 * sa : 1), 0, 1);
+      const a = clamp(dt.i * dt.shade * P.dotAlpha * (P.dotSource === "blob" ? 0.25 + 0.75 * sa : 1), 0, 1);
       if (a < 0.02) continue;
       c.fillStyle = cstr(col, a);
       c.beginPath();
@@ -271,6 +306,8 @@ export const LIQUID_GLASS_DEFAULTS: LiquidGlassParams = {
   dotColor: "#6a2bff", // 開いた時の既定色＝プリセット1（バイオレット）
   animA: 0,
   animB: 3,
+  motion: 1,
+  inflow: 1,
   count: 1,
   blend: "lighter",
   wobble: 0.65,
@@ -361,6 +398,8 @@ export const LIQUID_GLASS_CONTROLS: ControlsSpec = [
   [
     "モーション / MOTION",
     [
+      ["motion", "動きのパターン", "o", [["1", "標準"], ["2", "吸い込み（中心へ流入）"], ["3", "粒子渦（環流）"], ["4", "粒子渦（環流＋回転）"]]],
+      ["inflow", "吸い込みの強さ", "r", 0, 2, 0.05, ""],
       ["animA", "歪みの周回数", "r", 0, 3, 1, "周"],
       ["animB", "渦の周回数", "r", 0, 3, 1, "周"],
     ],
@@ -443,7 +482,7 @@ function liquidGlassShapes(
       sa = d[k + 3] / 255;
       col = sa > 0.06 ? [d[k], d[k + 1], d[k + 2]] : base;
     }
-    const a = clamp(dt.i * P.dotAlpha * (P.dotSource === "blob" ? 0.25 + 0.75 * sa : 1), 0, 1);
+    const a = clamp(dt.i * dt.shade * P.dotAlpha * (P.dotSource === "blob" ? 0.25 + 0.75 * sa : 1), 0, 1);
     if (a < 0.02) continue;
     const fill = rgbHex(col);
     const o = a.toFixed(3);
