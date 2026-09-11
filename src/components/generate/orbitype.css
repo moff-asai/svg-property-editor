@@ -109,6 +109,11 @@
 .gen-tbtn.is-active { color: var(--accent); }
 .gen-tbtn:disabled { opacity: 0.5; cursor: default; }
 
+/* トップバー左：ブランド＋ホームボタンのナビ群 */
+.gen-nav { display: flex; height: 100%; align-items: stretch; }
+.gen-nav .gen-tbtn { display: flex; align-items: center; gap: 6px; text-decoration: none; }
+.gen-nav .gen-tbtn svg { display: block; }
+
 .gen-export {
   appearance: none;
   border: 0;
